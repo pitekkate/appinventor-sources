@@ -34,7 +34,7 @@ jobs:
         run: ant tests
         working-directory: appinventor
       - name: 'Upload Test Reports to Artifacts'
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v4
         with:
           name: Test Reports
           path: appinventor/reports
@@ -42,7 +42,7 @@ jobs:
         run: ant PlayApp
         working-directory: appinventor
       - name: 'Upload Companion to Artifacts'
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v4
         with:
           name: MIT AI2 Companion
           path: appinventor/build/buildserver/MIT AI2 Companion.apk
