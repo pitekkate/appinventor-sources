@@ -12,6 +12,28 @@
     App Inventor
   </description>
 
+  <!-- Added properties for modern libraries -->
+  <property name="kotlin.version" value="1.9.0" />
+  <property name="material.version" value="1.11.0" />
+  <property name="retrofit.version" value="2.9.0" />
+  <property name="coroutines.version" value="1.7.3" />
+  <property name="additional.lib.dir" value="appinventor/libs/additional" />
+
+  <!-- Target to download modern libraries -->
+  <target name="download-libs">
+    <mkdir dir="${additional.lib.dir}" />
+    <get src="https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/${kotlin.version}/kotlin-stdlib-${kotlin.version}.jar"
+         dest="${additional.lib.dir}/kotlin-stdlib.jar" verbose="true" usetimestamp="true" />
+    <get src="https://repo1.maven.org/maven2/com/google/android/material/material/${material.version}/material-${material.version}.jar"
+         dest="${additional.lib.dir}/material-design.jar" verbose="true" usetimestamp="true" />
+    <get src="https://repo1.maven.org/maven2/com/squareup/retrofit2/retrofit/${retrofit.version}/retrofit-${retrofit.version}.jar"
+         dest="${additional.lib.dir}/retrofit.jar" verbose="true" usetimestamp="true" />
+    <get src="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/${coroutines.version}/kotlinx-coroutines-core-${coroutines.version}.jar"
+         dest="${additional.lib.dir}/coroutines-core.jar" verbose="true" usetimestamp="true" />
+    <get src="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/${coroutines.version}/kotlinx-coroutines-android-${coroutines.version}.jar"
+         dest="${additional.lib.dir}/coroutines-android.jar" verbose="true" usetimestamp="true" />
+  </target>
+
   <target name="all">
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="blocklyeditor"/>
@@ -19,17 +41,15 @@
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="components"/>
     <ant inheritAll="false" antfile="ios-build.xml"/>
+    <ant inheritAll="false" target="download-libs"/> <!-- Added library download -->
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="PlayApp"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="PlayAppExtras"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="Emulator"/>
     <ant inheritAll="false" antfile="ios-build.xml" target="Companion"/>
   </target>
 
-  <target name="MakeAuthKey">
-    <ant inheritAll="false" useNativeBasedir="true" dir="appengine" target="MakeAuthKey"/>
-  </target>
-
-  <target name="android">
+  <!-- Added depends for download-libs in Android targets -->
+  <target name="android" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="common"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="components"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver"/>
@@ -41,7 +61,7 @@
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine"/>
   </target>
 
-  <target name="comps">
+  <target name="comps" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="components"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="installplay"/>
   </target>
@@ -59,7 +79,7 @@
     <ant inheritAll="false" antfile="ios-build.xml" target="tests"/>
   </target>
 
-  <target name="comps1">
+  <target name="comps1" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="components"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="BuildServer"/>
   </target>
@@ -78,7 +98,8 @@
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver"/>
   </target>
 
-  <target name="installplay">
+  <!-- Added depends for download-libs in PlayApp targets -->
+  <target name="installplay" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="installplay"/>
   </target>
 
@@ -86,19 +107,19 @@
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="RunLocalBuildServer"/>
   </target>
 
-  <target name="PlayApp">
+  <target name="PlayApp" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="PlayApp"/>
   </target>
 
-  <target name="PlayAppAab">
+  <target name="PlayAppAab" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="PlayAppAab"/>
   </target>
 
-  <target name="PlayAppExtras">
+  <target name="PlayAppExtras" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="PlayAppExtras"/>
   </target>
 
-  <target name="Emulator">
+  <target name="Emulator" depends="download-libs">
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver" target="Emulator"/>
   </target>
 
@@ -144,10 +165,14 @@
         <pathelement location="common/src" />
         <pathelement location="components/src" />
         <pathelement location="build/components/ComponentTranslation/src" />
+        <!-- Added Kotlin source path -->
+        <pathelement location="appinventor/aiplayapp/src" />
       </sourcepath>
       <classpath>
         <fileset dir="buildserver/lib" includes="**/*.jar"/>
         <fileset dir="lib" includes="**/*.jar"/>
+        <!-- Added modern libraries -->
+        <fileset dir="${additional.lib.dir}" includes="*.jar"/>
         <pathelement location="common/build/classes/CommonVersion" />
       </classpath>
       <!-- TODO(opensource) - Add more <link> elements that correspond to the jars on the
@@ -158,6 +183,8 @@
       <link href="http://d.android.com/reference"
             offline="true"
             packagelistLoc="lib/android"/>
+      <!-- Added Kotlin docs -->
+      <link href="https://kotlinlang.org/api/latest/jvm/stdlib/"/>
     </javadoc>
   </target>
 
@@ -179,6 +206,8 @@
       <arg value="common/tests"/>
       <arg value="components/src"/>
       <arg value="components/tests"/>
+      <!-- Added Kotlin source checking -->
+      <arg value="appinventor/aiplayapp/src"/>
     </java>
   </target>
 
@@ -198,6 +227,8 @@
     <ant inheritAll="false" useNativeBasedir="true" dir="common" target="clean"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="components" target="clean"/>
     <ant inheritAll="false" antfile="ios-build.xml" target="clean"/>
+    <!-- Clean additional libraries -->
+    <delete dir="${additional.lib.dir}" />
     <delete dir="build"/>
     <delete dir="reports"/>
   </target>
