@@ -2,22 +2,61 @@ package edu.mit.appinventor.aicompanion3
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
-import edu.mit.appinventor.aicompanion3.viewmodels.ConnectionViewModel
+import androidx.lifecycle.ViewModelProvider
+import edu.mit.appinventor.aicompanion3.databinding.ActivityModernMainBinding
+import edu.mit.appinventor.aicompanion3.viewmodels.MainViewModel
 
-class MainActivity : AppCompatActivity() {
+class ModernMainActivity : AppCompatActivity() {
 
-    private lateinit var viewModel: ConnectionViewModel
+    private lateinit var binding: ActivityModernMainBinding
+    private lateinit var viewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main_modern)
         
-        viewModel = ConnectionViewModel(application)
+        // Inisialisasi View Binding
+        binding = ActivityModernMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         
-        val connectButton = findViewById<MaterialButton>(R.id.connectButton)
-        connectButton.setOnClickListener {
+        // Setup ViewModel
+        viewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        
+        // Setup UI
+        setupUI()
+        observeViewModel()
+    }
+
+    private fun setupUI() {
+        binding.connectButton.setOnClickListener {
             viewModel.connectToAppInventor()
         }
+        
+        binding.qrScannerButton.setOnClickListener {
+            viewModel.startQrScanner(this)
+        }
+        
+        binding.settingsButton.setOnClickListener {
+            // Navigasi ke settings
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.connectionStatus.observe(this) { status ->
+            binding.connectionStatus.text = status
+            when (status) {
+                "CONNECTED" -> binding.statusIcon.setImageResource(R.drawable.ic_connected)
+                "CONNECTING" -> binding.statusIcon.setImageResource(R.drawable.ic_connecting)
+                else -> binding.statusIcon.setImageResource(R.drawable.ic_disconnected)
+            }
+        }
+        
+        viewModel.projectList.observe(this) { projects ->
+            // Update project list
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        viewModel.checkConnectionStatus()
     }
 }
