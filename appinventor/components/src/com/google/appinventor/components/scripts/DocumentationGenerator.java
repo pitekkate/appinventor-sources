@@ -139,7 +139,6 @@ public class DocumentationGenerator extends ComponentProcessor {
         ComponentCategory.STORAGE,
         ComponentCategory.CONNECTIVITY,
         ComponentCategory.SENSORS,
-        ComponentCategory.LEGOMINDSTORMS,
         //ComponentCategory.EXPERIMENTAL
       }
     };
