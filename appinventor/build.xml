@@ -11,8 +11,52 @@
   <description>
     App Inventor
   </description>
+  
+  <!-- ====================== TAILWIND CSS INTEGRATION ====================== -->
+  <property name="tailwind.dir" 
+            value="appengine/src/com/google/appinventor/client/style/neo/tailwind/assets"/>
+  <property name="tailwind.output" 
+            value="appengine/war/neo/css/tailwind.min.css"/>
+  
+  <!-- Deteksi OS untuk perintah npm yang benar -->
+  <condition property="npm.cmd" value="npm.cmd">
+    <os family="windows"/>
+  </condition>
+  <property name="npm.cmd" value="npm"/>
+  
+  <target name="tailwind.install" depends="init">
+    <echo message="Installing Tailwind CSS dependencies..."/>
+    <exec executable="${npm.cmd}" dir="${tailwind.dir}" failonerror="true">
+      <arg value="install"/>
+    </exec>
+  </target>
+  
+  <target name="tailwind.build" depends="init">
+    <echo message="Building Tailwind CSS..."/>
+    <exec executable="${npm.cmd}" dir="${tailwind.dir}" failonerror="true">
+      <arg value="run"/>
+      <arg value="build"/>
+    </exec>
+  </target>
+  
+  <target name="tailwind.clean">
+    <echo message="Cleaning Tailwind CSS output..."/>
+    <delete file="${tailwind.output}" quiet="true"/>
+  </target>
+  
+  <target name="tailwind.watch">
+    <echo message="Starting Tailwind in watch mode..."/>
+    <exec executable="${npm.cmd}" dir="${tailwind.dir}" spawn="true">
+      <arg value="run"/>
+      <arg value="dev"/>
+    </exec>
+  </target>
+  <!-- ====================== END TAILWIND CSS INTEGRATION ====================== -->
 
   <target name="all">
+    <!-- Build Tailwind terlebih dahulu -->
+    <antcall target="tailwind.build"/>
+    
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="blocklyeditor"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="common"/>
@@ -37,6 +81,9 @@
   </target>
 
   <target name="webapp">
+    <!-- Build Tailwind terlebih dahulu -->
+    <antcall target="tailwind.build"/>
+    
     <ant inheritAll="false" useNativeBasedir="true" dir="blocklyeditor"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine"/>
   </target>
@@ -74,6 +121,9 @@
   </target>
 
   <target name="noplay">
+    <!-- Build Tailwind terlebih dahulu -->
+    <antcall target="tailwind.build"/>
+    
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="buildserver"/>
   </target>
@@ -108,6 +158,11 @@
   
   <target name="devmode" depends="noplay">
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine" target="devmode"/>
+  </target>
+  
+  <target name="tailwind.dev">
+    <antcall target="tailwind.watch"/>
+    <antcall target="devmode"/>
   </target>
 
   <!-- Convenient target for just running the blockly related tests -->
@@ -191,6 +246,8 @@
   </target>
 
   <target name="clean">
+    <antcall target="tailwind.clean"/>
+    
     <ant inheritAll="false" useNativeBasedir="true" dir="appengine" target="clean"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="blocklyeditor" target="clean"/>
     <ant inheritAll="false" useNativeBasedir="true" dir="aimerger" target="clean"/>
