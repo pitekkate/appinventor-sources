@@ -162,7 +162,6 @@ public class YoungAndroidPalettePanel extends Composite implements SimplePalette
 
     paletteHelpers = new HashMap<ComponentCategory, PaletteHelper>();
     // If a category has a palette helper, add it to the paletteHelpers map here.
-    paletteHelpers.put(ComponentCategory.LEGOMINDSTORMS, new LegoPaletteHelper());
     simplePaletteItems = new HashMap<String, SimplePaletteItem>();
     translationMap = new HashMap<String, String>();
     panel = new VerticalPanel();
