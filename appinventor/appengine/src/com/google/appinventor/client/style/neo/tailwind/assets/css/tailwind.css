@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Komponen Kustom */
+@layer components {
+  .tw-ai-button {
+    @apply tw-bg-primary tw-text-white tw-py-2 tw-px-4 tw-rounded tw-transition hover:tw-bg-primary-dark;
+  }
+  .tw-ai-card {
+    @apply tw-bg-white tw-shadow-md tw-rounded-lg tw-p-4;
+  }
+}
