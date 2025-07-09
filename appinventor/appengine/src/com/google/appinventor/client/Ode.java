@@ -87,6 +87,7 @@ import com.google.gwt.core.client.Callback;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.RunAsyncCallback;
+import com.google.gwt.dom.client.StyleInjector;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
@@ -1021,8 +1022,12 @@ public class Ode implements EntryPoint {
       layout = "modern";
       if (Ode.getUserDarkThemeEnabled()) {
         style = Resources.INSTANCE.stylemodernDark();
+        StyleInjector.inject(Resources.INSTANCE.stylemodernDark().getText(), true);
+        StyleInjector.injectFromUrl("/neo/css/tailwind.min.css");
       } else {
         style = Resources.INSTANCE.stylemodernLight();
+        StyleInjector.inject(Resources.INSTANCE.stylemodernLight().getText(), true);
+        StyleInjector.injectFromUrl("/neo/css/tailwind.min.css");
       }
     } else {
       layout = "classic";
