@@ -1020,14 +1020,13 @@ public class Ode implements EntryPoint {
     String layout;
     if (Ode.getUserNewLayout()) {
       layout = "modern";
+      StyleInjector.injectFromUrl("/neo/css/tailwind.min.css");
       if (Ode.getUserDarkThemeEnabled()) {
         style = Resources.INSTANCE.stylemodernDark();
         StyleInjector.inject(Resources.INSTANCE.stylemodernDark().getText(), true);
-        StyleInjector.injectFromUrl("/neo/css/tailwind.min.css");
       } else {
         style = Resources.INSTANCE.stylemodernLight();
-        StyleInjector.inject(Resources.INSTANCE.stylemodernLight().getText(), true);
-        StyleInjector.injectFromUrl("/neo/css/tailwind.min.css");
+        StyleInjector.inject(Resources.INSTANCE.stylemodernLight().getText(), true);        
       }
     } else {
       layout = "classic";
