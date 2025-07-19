@@ -1,0 +1,38 @@
+name: Manual Build and Upload WAR
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - RemoveLego
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/RemoveLego'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Ant
+        run: sudo apt-get update && sudo apt-get install -y ant
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+
+      - name: Build WAR file
+        working-directory: appinventor
+        run: |
+          ant
+
+      - name: Upload WAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: war-build
+          path: appinventor/appengine/build/war
