@@ -503,7 +503,7 @@
           fork="true"
           failonerror="true">
       <classpath>
-        <pathelement location="${lib.dir}/android/tools/d8.jar"/>
+        <pathelement location="${lib.dir}/android/tools/r8.jar"/>
       </classpath>
       <arg line="--lib ${lib.dir}/android/android-${android.sdk.version}/android.jar"/>
       <arg line="--classpath ${public.build.dir}/AndroidRuntime.jar"/>
