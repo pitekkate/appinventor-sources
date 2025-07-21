@@ -134,8 +134,8 @@ public class Resources {
     return getResource(DX_JAR);
   }
 
-  public String getD8Jar() {
-    return getResource(D8_JAR);
+  public String getR8Jar() {
+    return getResource(R8_JAR);
   }
 
   public String getApksignerJar() {
