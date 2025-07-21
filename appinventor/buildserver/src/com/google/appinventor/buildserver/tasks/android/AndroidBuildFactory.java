@@ -78,7 +78,7 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
   protected void compileSources(Compiler<AndroidPaths, AndroidCompilerContext> compiler) {
     super.compileSources(compiler);
     compiler.add(GenerateClasses.class);
-    compiler.add(USE_D8 ? RunD8.class : RunMultidex.class);
+    compiler.add(USE_D8 ? RunR8.class : RunMultidex.class);
   }
 
   @Override
