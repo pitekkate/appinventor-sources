@@ -20,17 +20,38 @@ import java.util.logging.Logger;
  */
 public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompilerContext> {
   private static final Logger LOG = Logger.getLogger(AndroidBuildFactory.class.getName());
-  private static final boolean USE_D8 = determineD8Usage(); // Perbaikan di sini
+  
+  // Opsi konfigurasi (bisa diubah sesuai kebutuhan)
+  private static final boolean FORCE_D8 = true; // Set true untuk paksa D8 di JDK 8
+  private static final boolean USE_D8 = shouldUseD8();
 
-  // Method baru untuk menentukan penggunaan D8
-  private static boolean determineD8Usage() {
-    double version = 1.8;
-    try {
-      version = Double.parseDouble(System.getProperty("java.specification.version"));
-    } catch (NumberFormatException e) {
-      LOG.log(Level.SEVERE, "Unable to determine Java version", e);
+  private static boolean shouldUseD8() {
+    // 1. Jika dipaksa pakai D8, langsung return true
+    if (FORCE_D8) {
+      LOG.info("D8 dexer dipaksa aktif (FORCE_D8=true)");
+      return true;
     }
-    return version >= 9;
+
+    // 2. Ambil versi Java
+    String versionStr = System.getProperty("java.specification.version");
+    int majorVersion = 8; // Default ke Java 8
+    
+    try {
+      if (versionStr.startsWith("1.")) {
+        // Format lama: 1.x
+        majorVersion = Integer.parseInt(versionStr.substring(2, 3));
+      } else {
+        // Format baru: x (angka bulat)
+        majorVersion = Integer.parseInt(versionStr);
+      }
+    } catch (NumberFormatException | IndexOutOfBoundsException e) {
+      LOG.log(Level.WARNING, "Gagal parse Java version: " + versionStr + ", asumsikan Java 8", e);
+    }
+
+    // 3. Logika utama: JDK 9+ gunakan D8
+    boolean useD8 = majorVersion >= 9;
+    LOG.info("Menggunakan D8 dexer: " + useD8 + " (Java major version: " + majorVersion + ")");
+    return useD8;
   }
 
   private final boolean isAab;
@@ -78,7 +99,10 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
   protected void compileSources(Compiler<AndroidPaths, AndroidCompilerContext> compiler) {
     super.compileSources(compiler);
     compiler.add(GenerateClasses.class);
-    compiler.add(USE_D8 ? RunD8.class : RunMultidex.class); // Tetap menggunakan nilai final
+    
+    // Tambahkan log untuk debugging
+    LOG.info("Memilih dexer: " + (USE_D8 ? "D8" : "DX Multidex"));
+    compiler.add(USE_D8 ? RunD8.class : RunMultidex.class);
   }
 
   @Override
@@ -104,5 +128,14 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
   @Override
   public Class<AndroidCompilerContext> getContextClass() {
     return AndroidCompilerContext.class;
+  }
+  
+  // Untuk debugging
+  static {
+    System.setProperty("com.android.tools.r8.allowTestProguardOptions", "true");
+    if (FORCE_D8) {
+      System.setProperty("com.android.tools.r8.disableDesugaring", "false");
+    }
+    LOG.config("Konfigurasi D8 - FORCE_D8: " + FORCE_D8 + ", USE_D8: " + USE_D8);
   }
 }
