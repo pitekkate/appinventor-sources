@@ -30,7 +30,7 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
       // In theory this shouldn't happen, but we will assume Java 1.8 or earlier if it does
       LOG.log(Level.SEVERE, "Unable to determine Java version", e);
     }
-    USE_D8 = version >= 9;
+    USE_R8 = version >= 9;
   }
 
   private final boolean isAab;
