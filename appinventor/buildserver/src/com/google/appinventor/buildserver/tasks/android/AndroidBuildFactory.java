@@ -20,17 +20,17 @@ import java.util.logging.Logger;
  */
 public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompilerContext> {
   private static final Logger LOG = Logger.getLogger(AndroidBuildFactory.class.getName());
-  private static final boolean USE_D8 = true;
+  private static final boolean USE_D8 = determineD8Usage(); // Perbaikan di sini
 
-  static {
+  // Method baru untuk menentukan penggunaan D8
+  private static boolean determineD8Usage() {
     double version = 1.8;
     try {
       version = Double.parseDouble(System.getProperty("java.specification.version"));
     } catch (NumberFormatException e) {
-      // In theory this shouldn't happen, but we will assume Java 1.8 or earlier if it does
       LOG.log(Level.SEVERE, "Unable to determine Java version", e);
     }
-    USE_D8 = version >= 9;
+    return version >= 9;
   }
 
   private final boolean isAab;
@@ -78,7 +78,7 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
   protected void compileSources(Compiler<AndroidPaths, AndroidCompilerContext> compiler) {
     super.compileSources(compiler);
     compiler.add(GenerateClasses.class);
-    compiler.add(USE_D8 ? RunD8.class : RunMultidex.class);
+    compiler.add(USE_D8 ? RunD8.class : RunMultidex.class); // Tetap menggunakan nilai final
   }
 
   @Override
