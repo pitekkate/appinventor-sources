@@ -15,7 +15,7 @@
  "blockProperties": [],
  "helpUrl": "",
  "type": "edu.mit.appinventor.companionextras.CompanionExtras",
- "androidMinSdk": 7,
+ "androidMinSdk": 21,
  "version": "1",
  "external": "true",
  "showOnPalette": "true",
