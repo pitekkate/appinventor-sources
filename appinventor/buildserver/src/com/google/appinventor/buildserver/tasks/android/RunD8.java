@@ -28,9 +28,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @BuildType(aab = true, apk = true)
 public class RunD8 extends DexTask implements AndroidTask {
+  private static final Logger LOG = Logger.getLogger(RunD8.class.getName());
   private static final boolean USE_D8_PROGUARD_RULES = true;
 
   @Override
@@ -127,12 +130,12 @@ public class RunD8 extends DexTask implements AndroidTask {
         mainDexClasses.add(context.getProject().getMainClass());
       }
 
-      // Run the final DX step to include user's compiled screens
+      // Run the final D8 step to include user's compiled screens
       if (!runD8(context, inputs, mainDexClasses)) {
         return TaskResult.generateError("d8 failed.");
       }
 
-      // Aggregate all classes.dex files output by dx
+      // Aggregate all classes.dex files output by D8
       File[] files = context.getPaths().getTmpDir().listFiles((dir, name) -> name.endsWith(".dex"));
       if (files == null) {
         throw new FileNotFoundException("Could not find classes.dex");
@@ -175,52 +178,119 @@ public class RunD8 extends DexTask implements AndroidTask {
       Set<String> mainDexClasses, String outputDir, String intermediateFileName)
       throws IOException {
     List<String> arguments = new ArrayList<>();
-    List<String> javaArgs = new ArrayList<>();
-    arguments.add("java");
-    javaArgs.add("-Xmx" + context.getChildProcessRam() + "M");
-    javaArgs.add("-Xss8m");
-    javaArgs.add("-cp");
-    javaArgs.add(context.getResources().getD8Jar());
-    javaArgs.add("com.android.tools.r8.D8");
+    
+    // PERBAIKAN UTAMA: Gunakan metode eksekusi yang lebih reliable
+    arguments.add(context.getJavaRuntime());  // Gunakan runtime Java yang benar
+    arguments.add("-Xmx" + context.getChildProcessRam() + "M");
+    arguments.add("-Xss8m");
+    arguments.add("-cp");
+    arguments.add(context.getResources().getD8Jar());
+    arguments.add("com.android.tools.r8.D8");
+    
     if (intermediateFileName != null) {
-      javaArgs.add("--intermediate");
+      arguments.add("--intermediate");
     }
-    javaArgs.add("--lib");
-    javaArgs.add(context.getResources().getAndroidRuntime());
+    arguments.add("--lib");
+    arguments.add(context.getResources().getAndroidRuntime());
+    
     if (intermediateFileName == null) {
-      javaArgs.add("--classpath");
-      javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
+      arguments.add("--classpath");
+      arguments.add(context.getPaths().getClassesDir().getAbsolutePath());
     }
-    javaArgs.add("--output");
-    javaArgs.add(outputDir);
-    javaArgs.add("--min-api");
-    javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
+    arguments.add("--output");
+    arguments.add(outputDir);
+    arguments.add("--min-api");
+    arguments.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
+    
     if (mainDexClasses != null) {
       if (USE_D8_PROGUARD_RULES) {
-        javaArgs.add("--main-dex-rules");
-        javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
+        arguments.add("--main-dex-rules");
+        arguments.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
       } else {
-        javaArgs.add("--main-dex-list");
-        javaArgs.add(writeClassList(context.getPaths().getClassesDir(), mainDexClasses));
+        arguments.add("--main-dex-list");
+        arguments.add(writeClassList(context.getPaths().getClassesDir(), mainDexClasses));
       }
     }
+    
     for (File input : inputs) {
-      javaArgs.add(input.getAbsolutePath());
+      arguments.add(input.getAbsolutePath());
     }
-    File javaArgsFile = new File(context.getPaths().getTmpDir(), "d8arguments.txt");
-    try (PrintStream ps = new PrintStream(new FileOutputStream(javaArgsFile))) {
-      for (String arg : javaArgs) {
-        ps.println(arg);
-      }
-    }
-    arguments.add("@" + javaArgsFile.getAbsolutePath());
+
+    // PERBAIKAN: Hindari file argument yang bermasalah
+    LOG.info("Executing D8 command: " + String.join(" ", arguments));
+    
     synchronized (context.getResources().getSyncKawaOrDx()) {
       boolean result = Execution.execute(context.getPaths().getTmpDir(),
           arguments.toArray(new String[0]), System.out, System.err, Execution.Timeout.LONG);
+      
+      if (!result) {
+        // FALLBACK: Coba jalankan langsung tanpa melalui file argument
+        LOG.warning("Standard D8 execution failed, trying direct invocation");
+        return runD8Direct(context, inputs, mainDexClasses, outputDir, intermediateFileName);
+      }
+    }
+    
+    if (intermediateFileName != null) {
+      Files.move(FileSystems.getDefault().getPath(outputDir, "classes.dex"),
+          FileSystems.getDefault().getPath(outputDir, intermediateFileName));
+    }
+    return true;
+  }
+
+  /**
+   * PERBAIKAN: Metode alternatif untuk menjalankan D8 tanpa file argument
+   */
+  private static boolean runD8Direct(AndroidCompilerContext context, Collection<File> inputs,
+      Set<String> mainDexClasses, String outputDir, String intermediateFileName)
+      throws IOException {
+    List<String> command = new ArrayList<>();
+    
+    command.add(context.getJavaRuntime());
+    command.add("-Xmx" + context.getChildProcessRam() + "M");
+    command.add("-Xss8m");
+    command.add("-jar");
+    command.add(context.getResources().getD8Jar());
+    
+    if (intermediateFileName != null) {
+      command.add("--intermediate");
+    }
+    command.add("--lib");
+    command.add(context.getResources().getAndroidRuntime());
+    
+    if (intermediateFileName == null) {
+      command.add("--classpath");
+      command.add(context.getPaths().getClassesDir().getAbsolutePath());
+    }
+    command.add("--output");
+    command.add(outputDir);
+    command.add("--min-api");
+    command.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
+    
+    if (mainDexClasses != null) {
+      if (USE_D8_PROGUARD_RULES) {
+        command.add("--main-dex-rules");
+        command.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
+      } else {
+        command.add("--main-dex-list");
+        command.add(writeClassList(context.getPaths().getClassesDir(), mainDexClasses));
+      }
+    }
+    
+    for (File input : inputs) {
+      command.add(input.getAbsolutePath());
+    }
+
+    LOG.info("Executing D8 directly: " + String.join(" ", command));
+    
+    synchronized (context.getResources().getSyncKawaOrDx()) {
+      boolean result = Execution.execute(context.getPaths().getTmpDir(),
+          command.toArray(new String[0]), System.out, System.err, Execution.Timeout.LONG);
+      
       if (!result) {
         return false;
       }
     }
+    
     if (intermediateFileName != null) {
       Files.move(FileSystems.getDefault().getPath(outputDir, "classes.dex"),
           FileSystems.getDefault().getPath(outputDir, intermediateFileName));
@@ -252,5 +322,15 @@ public class RunD8 extends DexTask implements AndroidTask {
       }
       return dexedLib;
     }
+  }
+  
+  // Helper untuk mendapatkan Java runtime
+  private static String getJavaRuntime() {
+    String javaHome = System.getProperty("java.home");
+    String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
+    if (System.getProperty("os.name").toLowerCase().contains("win")) {
+      javaBin += ".exe";
+    }
+    return javaBin;
   }
 }
