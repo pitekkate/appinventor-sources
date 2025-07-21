@@ -11,15 +11,18 @@ import com.google.appinventor.buildserver.context.AndroidCompilerContext;
 import com.google.appinventor.buildserver.interfaces.AndroidTask;
 import com.google.appinventor.buildserver.util.Execution;
 import com.google.appinventor.buildserver.util.ExecutorUtils;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
-import java.nio.file.Files; // IMPOR DITAMBAHKAN
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -164,8 +167,6 @@ public class RunR8 extends DexTask implements AndroidTask {
     
     // Basic R8 configuration
     javaArgs.add("--release");
-    javaArgs.add("--classpath");
-    javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
     javaArgs.add("--lib");
     javaArgs.add(context.getResources().getAndroidRuntime());
     javaArgs.add("--output");
@@ -177,16 +178,27 @@ public class RunR8 extends DexTask implements AndroidTask {
     javaArgs.add("--no-desugaring");
     javaArgs.add("--no-minification");
     
+    // Add classpath only for final dexing
+    if (intermediateFileName == null) {
+      javaArgs.add("--classpath");
+      javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
+    }
+    
     // Main dex configuration
-    if (mainDexClasses != null) {
+    if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
       javaArgs.add("--main-dex-rules");
-      javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
+      String rulesFile = writeClassRules(context.getPaths().getClassesDir(), mainDexClasses);
+      context.getReporter().info("Using main dex rules: " + rulesFile);
+      javaArgs.add(rulesFile);
     }
     
     // Add input files
     for (File input : inputs) {
       javaArgs.add(input.getAbsolutePath());
     }
+    
+    // Log the command for debugging
+    context.getReporter().info("Executing R8 with arguments: " + String.join(" ", javaArgs));
     
     File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt");
     try (PrintStream ps = new PrintStream(new FileOutputStream(javaArgsFile))) {
@@ -196,19 +208,52 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     arguments.add("@" + javaArgsFile.getAbsolutePath());
     
+    // Capture output for better error reporting
+    ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
+    ByteArrayOutputStream errorBuffer = new ByteArrayOutputStream();
+    PrintStream outStream = new PrintStream(outputBuffer);
+    PrintStream errStream = new PrintStream(errorBuffer);
+    
     synchronized (context.getResources().getSyncKawaOrDx()) {
       boolean result = Execution.execute(context.getPaths().getTmpDir(),
-          arguments.toArray(new String[0]), System.out, System.err, Execution.Timeout.LONG);
+          arguments.toArray(new String[0]), outStream, errStream, Execution.Timeout.LONG);
+      
+      // Log output
+      String outputStr = outputBuffer.toString();
+      String errorStr = errorBuffer.toString();
+      
+      if (!outputStr.isEmpty()) {
+        context.getReporter().info("R8 output:\n" + outputStr);
+      }
+      if (!errorStr.isEmpty()) {
+        context.getReporter().error("R8 error output:\n" + errorStr);
+      }
+      
       if (!result) {
         return false;
       }
     }
     
     if (intermediateFileName != null) {
-      Files.move(FileSystems.getDefault().getPath(outputDir, "classes.dex"),
-          FileSystems.getDefault().getPath(outputDir, intermediateFileName));
+      Path source = FileSystems.getDefault().getPath(outputDir, "classes.dex");
+      Path target = FileSystems.getDefault().getPath(outputDir, intermediateFileName);
+      context.getReporter().info("Moving " + source + " to " + target);
+      Files.move(source, target);
     }
     return true;
+  }
+
+  /**
+   * Write class rules to a temporary file and return its path
+   */
+  private static String writeClassRules(File outputDir, Set<String> rules) throws IOException {
+    File rulesFile = new File(outputDir, "main-dex-rules.txt");
+    try (PrintWriter writer = new PrintWriter(new FileWriter(rulesFile))) {
+      for (String rule : rules) {
+        writer.println(rule);
+      }
+    }
+    return rulesFile.getAbsolutePath();
   }
 
   private static File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
@@ -228,4 +273,4 @@ public class RunR8 extends DexTask implements AndroidTask {
       return dexedLib;
     }
   }
-  }
+}
