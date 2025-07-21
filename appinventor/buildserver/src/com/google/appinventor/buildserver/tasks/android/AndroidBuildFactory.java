@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  */
 public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompilerContext> {
   private static final Logger LOG = Logger.getLogger(AndroidBuildFactory.class.getName());
-  private static final boolean USE_D8;
+  private static final boolean USE_D8 = true;
 
   static {
     double version = 1.8;
