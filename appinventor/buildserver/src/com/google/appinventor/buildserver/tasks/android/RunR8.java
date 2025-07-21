@@ -19,6 +19,7 @@ import java.io.PrintStream;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
+import java.nio.file.Files; // IMPOR DITAMBAHKAN
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 @BuildType(aab = true, apk = true)
-public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas menjadi RunR8
+public class RunR8 extends DexTask implements AndroidTask {
   private static final boolean USE_D8_PROGUARD_RULES = true;
 
   @Override
@@ -127,7 +128,7 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
       }
 
       // Run the final R8 step to include user's compiled screens
-      if (!runR8(context, inputs, mainDexClasses)) { // Ubah menjadi runR8
+      if (!runR8(context, inputs, mainDexClasses)) {
         return TaskResult.generateError("R8 failed.");
       }
 
@@ -143,32 +144,13 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
     }
   }
 
-  /**
-   * Runs Android SDK's R8 program to create a dex file for the given collection of inputs. The
-   * classes.dex file(s) will be output to the active context's build directory.
-   *
-   * @param context the build context
-   * @param inputs collection of input files.
-   * @return true if the process succeeded
-   * @throws IOException if the dex file is unable to be moved to the {@code intermediateFileName}
-   */
-  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs, // Ubah nama metode
+  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs,
       Set<String> mainDexClasses) throws IOException {
     return runR8(context, inputs, mainDexClasses, context.getPaths().getTmpDir().getAbsolutePath(),
         null);
   }
 
-  /**
-   * Run Android SDK's R8 program to create a dex file for the given collection of inputs.
-   *
-   * @param context the build context
-   * @param inputs collection of input files.
-   * @param outputDir the destination for the classes.dex file
-   * @param intermediateFileName an alternative name to use for the dex file when pre-dexing
-   * @return true if the process succeeded
-   * @throws IOException if the dex file is unable to be moved to the {@code intermediateFileName}
-   */
-  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs, // Ubah nama metode
+  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs,
       Set<String> mainDexClasses, String outputDir, String intermediateFileName)
       throws IOException {
     List<String> arguments = new ArrayList<>();
@@ -177,10 +159,10 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
     javaArgs.add("-Xmx" + context.getChildProcessRam() + "M");
     javaArgs.add("-Xss8m");
     javaArgs.add("-cp");
-    javaArgs.add(context.getResources().getR8Jar()); // Ubah ke R8 JAR
-    javaArgs.add("com.android.tools.r8.R8");         // Gunakan R8 class
+    javaArgs.add(context.getResources().getR8Jar());
+    javaArgs.add("com.android.tools.r8.R8");
     
-    // Konfigurasi dasar R8
+    // Basic R8 configuration
     javaArgs.add("--release");
     javaArgs.add("--classpath");
     javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
@@ -191,22 +173,22 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
     javaArgs.add("--min-api");
     javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
     
-    // Nonaktifkan fitur yang tidak diperlukan
+    // Disable unnecessary features
     javaArgs.add("--no-desugaring");
     javaArgs.add("--no-minification");
     
-    // Konfigurasi main dex
+    // Main dex configuration
     if (mainDexClasses != null) {
       javaArgs.add("--main-dex-rules");
       javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
     }
     
-    // Tambahkan input files
+    // Add input files
     for (File input : inputs) {
       javaArgs.add(input.getAbsolutePath());
     }
     
-    File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt"); // Ubah nama file
+    File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt");
     try (PrintStream ps = new PrintStream(new FileOutputStream(javaArgsFile))) {
       for (String arg : javaArgs) {
         ps.println(arg);
@@ -229,14 +211,6 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
     return true;
   }
 
-  /**
-   * Dex the given {@code input} file and cache the results.
-   *
-   * @param context the build context
-   * @param input the input JAR file
-   * @return the path of the library to use as an input to the downstream R8 process
-   * @throws IOException if the R8 process fails due to an I/O issue
-   */
   private static File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
     synchronized (PREDEX_CACHE) {
       File cacheDir = new File(context.getDexCacheDir());
@@ -245,7 +219,7 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
         context.getReporter().info(String.format("Using pre-dexed %1$s <- %2$s",
             dexedLib.getName(), input));
       } else {
-        boolean success = runR8(context, Collections.singleton(input), null, // Ubah ke runR8
+        boolean success = runR8(context, Collections.singleton(input), null,
             context.getDexCacheDir(), dexedLib.getName());
         if (!success) {
           return input;
@@ -254,4 +228,4 @@ public class RunR8 extends DexTask implements AndroidTask { // Ubah nama kelas m
       return dexedLib;
     }
   }
-                                                 }
+  }
