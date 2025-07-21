@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  */
 public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompilerContext> {
   private static final Logger LOG = Logger.getLogger(AndroidBuildFactory.class.getName());
-  private static final boolean USE_D8;
+  private static final boolean USE_R8;
 
   static {
     double version = 1.8;
@@ -78,7 +78,7 @@ public class AndroidBuildFactory extends BuildFactory<AndroidPaths, AndroidCompi
   protected void compileSources(Compiler<AndroidPaths, AndroidCompilerContext> compiler) {
     super.compileSources(compiler);
     compiler.add(GenerateClasses.class);
-    compiler.add(USE_D8 ? RunR8.class : RunMultidex.class);
+    compiler.add(USE_R8 ? RunR8.class : RunMultidex.class);
   }
 
   @Override
