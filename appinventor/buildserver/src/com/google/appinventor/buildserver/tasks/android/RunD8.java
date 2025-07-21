@@ -180,7 +180,7 @@ public class RunD8 extends DexTask implements AndroidTask {
     List<String> arguments = new ArrayList<>();
     
     // PERBAIKAN UTAMA: Gunakan metode eksekusi yang lebih reliable
-    arguments.add(context.getJavaRuntime());  // Gunakan runtime Java yang benar
+    arguments.add(getJavaRuntime());  // Gunakan runtime Java yang benar
     arguments.add("-Xmx" + context.getChildProcessRam() + "M");
     arguments.add("-Xss8m");
     arguments.add("-cp");
@@ -245,7 +245,7 @@ public class RunD8 extends DexTask implements AndroidTask {
       throws IOException {
     List<String> command = new ArrayList<>();
     
-    command.add(context.getJavaRuntime());
+    command.add(getJavaRuntime());
     command.add("-Xmx" + context.getChildProcessRam() + "M");
     command.add("-Xss8m");
     command.add("-jar");
