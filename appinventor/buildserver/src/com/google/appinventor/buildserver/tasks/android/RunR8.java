@@ -15,10 +15,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -187,6 +185,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     // Main dex configuration
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
       javaArgs.add("--main-dex-rules");
+      // Gunakan metode dari kelas induk DexTask
       String rulesFile = writeClassRules(context.getPaths().getClassesDir(), mainDexClasses);
       context.getReporter().info("Using main dex rules: " + rulesFile);
       javaArgs.add(rulesFile);
@@ -241,19 +240,6 @@ public class RunR8 extends DexTask implements AndroidTask {
       Files.move(source, target);
     }
     return true;
-  }
-
-  /**
-   * Write class rules to a temporary file and return its path
-   */
-  private static String writeClassRules(File outputDir, Set<String> rules) throws IOException {
-    File rulesFile = new File(outputDir, "main-dex-rules.txt");
-    try (PrintWriter writer = new PrintWriter(new FileWriter(rulesFile))) {
-      for (String rule : rules) {
-        writer.println(rule);
-      }
-    }
-    return rulesFile.getAbsolutePath();
   }
 
   private static File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
