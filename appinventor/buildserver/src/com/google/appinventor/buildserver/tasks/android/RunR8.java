@@ -27,16 +27,14 @@ public class RunR8 extends DexTask implements AndroidTask {
     final List<File> inputs = new ArrayList<>();
 
     try {
-      // Kumpulkan .class user
+      // Collect user .class files
       recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
-      // Pre-dex runtime libraries
       inputs.add(preDexLibrary(context, recordForMainDex(
           new File(context.getResources().getSimpleAndroidRuntimeJar()), mainDexClasses)));
       inputs.add(preDexLibrary(context, recordForMainDex(
           new File(context.getResources().getKawaRuntime()), mainDexClasses)));
 
-      // Critical JARs
       final Set<String> criticalJars = getCriticalJars(context);
       for (String jar : criticalJars) {
         inputs.add(preDexLibrary(context, recordForMainDex(
@@ -48,13 +46,11 @@ public class RunR8 extends DexTask implements AndroidTask {
             new File(context.getResources().getAcraRuntime()), mainDexClasses)));
       }
 
-      // Support JARs
       for (String jar : context.getResources().getSupportJars()) {
         if (criticalJars.contains(jar)) continue;
         inputs.add(preDexLibrary(context, new File(context.getResource(jar))));
       }
 
-      // Extension libraries
       for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
         inputs.add(preDexLibrary(context, new File(lib)));
       }
@@ -69,10 +65,10 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
       }
 
-      // Tambahkan semua .class dari direktori build
+      // Walk all .class files
       Files.walkFileTree(context.getPaths().getClassesDir().toPath(), new SimpleFileVisitor<Path>() {
         @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
           if (file.toString().endsWith(".class")) {
             inputs.add(file.toFile());
           }
@@ -80,7 +76,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
       });
 
-      // Aturan main-dex hanya jika min-api < 21
+      // Only use --main-dex-rules if min-api < 21
       int minSdk = AndroidBuildUtils.computeMinSdk(context);
       boolean useMainDexRules = minSdk < 21;
 
@@ -98,45 +94,30 @@ public class RunR8 extends DexTask implements AndroidTask {
         context.getReporter().info("Skipping --main-dex-rules: min-api " + minSdk + " >= 21");
       }
 
-      // Jalankan R8
+      // Run R8
       if (!runR8Final(context, inputs, useMainDexRules ? mainDexClasses : null)) {
         return TaskResult.generateError("R8 failed.");
       }
 
-      // Cek hasil akhir: pastikan classes.dex ada
-      File outputDir = context.getPaths().getTmpDir();
-      File outputDex = new File(outputDir, "classes.dex");
-
+      // Check output
+      File outputDex = new File(context.getPaths().getTmpDir(), "classes.dex");
       if (!outputDex.exists()) {
-        context.getReporter().error("❌ FATAL: R8 did not produce classes.dex in " + outputDex.getAbsolutePath());
-
-        // Tampilkan isi direktori output
-        File[] files = outputDir.listFiles();
-        if (files != null && files.length > 0) {
-          context.getReporter().error("📁 Found files in output directory:");
-          for (File f : files) {
-            context.getReporter().error("   " + f.getName() + " → " + f.length() + " bytes");
-          }
-        } else {
-          context.getReporter().error("📁 Output directory is empty or cannot be listed");
-        }
-
+        context.getReporter().error("R8 did not produce classes.dex");
         return TaskResult.generateError("R8 did not generate classes.dex");
       }
 
-      context.getReporter().info("✅ Successfully generated classes.dex: " + outputDex.length() + " bytes");
       context.getResources().getDexFiles().add(outputDex);
-
       return TaskResult.generateSuccess();
 
     } catch (IOException e) {
-      context.getReporter().error("Exception during RunR8: " + e.getMessage(), e);
-      return TaskResult.generateError(e);
+      // ✅ Perbaikan: jangan lempar IOException ke .error()
+      context.getReporter().error("Exception in RunR8: " + e.getMessage());
+      return TaskResult.generateError(e); // ini benar: generateError(IOException)
     }
   }
 
   /**
-   * Jalankan R8 untuk menghasilkan classes.dex
+   * Jalankan R8 untuk hasilkan classes.dex
    */
   private boolean runR8Final(AndroidCompilerContext context, Collection<File> inputs,
                              Set<String> mainDexClasses) throws IOException {
@@ -148,10 +129,9 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(context.getResources().getR8Jar());
     cmd.add("com.android.tools.r8.R8");
 
-    // Direktori output
     File outputDir = context.getPaths().getTmpDir();
     if (!outputDir.exists() && !outputDir.mkdirs()) {
-      context.getReporter().error("Failed to create output directory: " + outputDir);
+      context.getReporter().error("Failed to create output dir: " + outputDir);
       return false;
     }
 
@@ -165,11 +145,10 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
 
-    // Classpath untuk kode user
     cmd.add("--classpath");
     cmd.add(context.getPaths().getClassesDir().getAbsolutePath());
 
-    // Hanya gunakan --main-dex-rules jika min-api < 21
+    // Hanya tambahkan aturan main-dex jika min-api < 21
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
       File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
       cmd.add("--main-dex-rules");
@@ -177,13 +156,11 @@ public class RunR8 extends DexTask implements AndroidTask {
       context.getReporter().info("Using main dex rules: " + rulesFile.getName());
     }
 
-    // Input files
     for (File input : inputs) {
       cmd.add(input.getAbsolutePath());
     }
 
-    // Logging command
-    context.getReporter().info("Executing R8 command:");
+    context.getReporter().info("Executing R8:");
     for (String arg : cmd) {
       context.getReporter().info("  " + arg);
     }
@@ -203,19 +180,15 @@ public class RunR8 extends DexTask implements AndroidTask {
       String output = outStream.toString();
       String error = errStream.toString();
 
-      if (!output.isEmpty()) {
-        context.getReporter().info("R8 Output:\n" + output);
-      }
-      if (!error.isEmpty()) {
-        context.getReporter().error("R8 Error:\n" + error);
-      }
+      if (!output.isEmpty()) context.getReporter().info("R8 Output:\n" + output);
+      if (!error.isEmpty()) context.getReporter().error("R8 Error:\n" + error);
 
       return success;
     }
   }
 
   /**
-   * Pre-dex library menggunakan R8
+   * Pre-dex library
    */
   private File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
     synchronized (PREDEX_CACHE) {
@@ -256,25 +229,4 @@ public class RunR8 extends DexTask implements AndroidTask {
         File result = new File(cacheDir, "classes.dex");
         if (result.exists()) {
           Files.move(result.toPath(), cachedDex.toPath(), StandardCopyOption.REPLACE_EXISTING);
-          return cachedDex;
-        }
-      }
-
-      context.getReporter().warn("R8 pre-dex failed, falling back: " + input);
-      return input;
-    }
-  }
-
-  /**
-   * Tulis aturan ProGuard-style ke file
-   */
-  private File writeClassRulesToFile(File dir, Set<String> classes) throws IOException {
-    File rulesFile = new File(dir, "main_dex_rules.pro");
-    try (PrintWriter w = new PrintWriter(new FileWriter(rulesFile))) {
-      for (String cls : classes) {
-        w.println("-keep class " + cls + " { *; }");
-      }
-    }
-    return rulesFile;
-  }
-}
+          return cachedD
