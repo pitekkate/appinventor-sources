@@ -14,14 +14,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: 11
-          cache: ant  # ← Ini akan cache classpath dan optimalkan build
+          # cache: ant  # ⛔ DIHAPUS — tidak didukung di v4
 
       - name: 'Checkout submodules'
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive
 
-      # --- [PENTING] Bersihkan direktori build ---
       - name: 'Clean workspace'
         run: |
           rm -rf appinventor/build/
@@ -33,14 +32,13 @@ jobs:
       - name: 'Download phantomJS'
         run: |
           mkdir -p /tmp/phantomJS
-          wget -P /tmp/phantomJS/ https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 
+          wget -P /tmp/phantomJS/  https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 
 
       - name: 'Untar and add to PATH'
         run: |
           tar -xf /tmp/phantomJS/phantomjs-2.1.1-linux-x86_64.tar.bz2 -C /tmp/phantomJS/
           echo '/tmp/phantomJS/phantomjs-2.1.1-linux-x86_64/bin' >> $GITHUB_PATH
 
-      # --- [PENTING] Set JAVA_HOME untuk Ant ---
       - name: 'Configure Ant environment'
         run: |
           echo "build.compiler=javac1.8" > appinventor/local.build.properties
@@ -48,8 +46,6 @@ jobs:
           echo "ant.build.javac.source=8" >> appinventor/local.build.properties
           echo "ant.build.javac.target=8" >> appinventor/local.build.properties
 
-          # Konfirmasi setup
-          echo "JAVA_HOME = $JAVA_HOME"
           java -version
           javac -version
 
