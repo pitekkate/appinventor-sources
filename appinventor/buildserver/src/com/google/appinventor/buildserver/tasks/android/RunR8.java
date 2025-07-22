@@ -189,6 +189,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(String.valueOf(minSdk));
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
+    cmd.add("--no-verify-inner-class-references");
 
     // Classpath
     List<String> cp = new ArrayList<>();
@@ -293,6 +294,7 @@ public class RunR8 extends DexTask implements AndroidTask {
           "--min-api", String.valueOf(AndroidBuildUtils.computeMinSdk(context)),
           "--no-desugaring",
           "--no-minification",
+          "--no-verify-inner-class-references",
           input.getAbsolutePath()
       );
 
