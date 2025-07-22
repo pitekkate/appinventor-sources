@@ -31,30 +31,40 @@ public class RunR8 extends DexTask implements AndroidTask {
       // Kumpulkan semua .class user
       recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
-      // Pre-dex libraries utama
+      // Direktori aman untuk input R8
+      File safeInputDir = getSafeInputDir(context);
+      if (!safeInputDir.exists() && !safeInputDir.mkdirs()) {
+        context.getReporter().error("Gagal membuat direktori input aman: " + safeInputDir);
+        return TaskResult.generateError("mkdir failed");
+      }
+
+      // Salin dan tambahkan library utama
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToSafeLocation(new File(context.getResources().getSimpleAndroidRuntimeJar()), context), mainDexClasses)));
+          copyToSafeLocation(new File(context.getResources().getSimpleAndroidRuntimeJar()), "AndroidRuntime.jar", safeInputDir), mainDexClasses)));
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToSafeLocation(new File(context.getResources().getKawaRuntime()), context), mainDexClasses)));
+          copyToSafeLocation(new File(context.getResources().getKawaRuntime()), "kawa.jar", safeInputDir), mainDexClasses)));
 
       final Set<String> criticalJars = getCriticalJars(context);
       for (String jar : criticalJars) {
+        String name = new File(jar).getName();
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToSafeLocation(new File(context.getResource(jar)), context), mainDexClasses)));
+            copyToSafeLocation(new File(context.getResource(jar)), name, safeInputDir), mainDexClasses)));
       }
 
       if (context.isForCompanion()) {
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToSafeLocation(new File(context.getResources().getAcraRuntime()), context), mainDexClasses)));
+            copyToSafeLocation(new File(context.getResources().getAcraRuntime()), "acra.jar", safeInputDir), mainDexClasses)));
       }
 
       for (String jar : context.getResources().getSupportJars()) {
         if (criticalJars.contains(jar)) continue;
-        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(context.getResource(jar)), context)));
+        String name = new File(jar).getName();
+        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(context.getResource(jar)), name, safeInputDir)));
       }
 
       for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
-        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(lib), context)));
+        String name = new File(lib).getName();
+        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(lib), name, safeInputDir)));
       }
 
       Set<String> addedExtJars = new HashSet<>();
@@ -62,7 +72,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
             context.getExtTypePathCache()) + context.getResources().getSimpleAndroidRuntimeJarPath();
         if (!addedExtJars.contains(sourcePath)) {
-          inputs.add(copyToSafeLocation(new File(sourcePath), context));
+          inputs.add(copyToSafeLocation(new File(sourcePath), "ext-" + type + ".jar", safeInputDir));
           addedExtJars.add(sourcePath);
         }
       }
@@ -138,24 +148,19 @@ public class RunR8 extends DexTask implements AndroidTask {
   }
 
   /**
-   * Salin file input ke lokasi aman agar tidak hilang saat R8 jalan
+   * Direktori aman untuk menyimpan input R8
    */
-  private File copyToSafeLocation(File src, AndroidCompilerContext context) throws IOException {
+  private File getSafeInputDir(AndroidCompilerContext context) {
+    return new File(System.getProperty("java.io.tmpdir"), "appinventor-r8/inputs-" + context.getProject().getProjectId());
+  }
+
+  /**
+   * Salin file ke lokasi aman dengan nama pendek
+   */
+  private File copyToSafeLocation(File src, String destName, File safeInputDir) throws IOException {
     if (src == null || !src.isFile()) return src;
 
-    // Gunakan /tmp/appinventor-r8/project-{id}/ agar tidak ikut dibersihkan
-    File baseDir = new File(System.getProperty("java.io.tmpdir"), "appinventor-r8");
-    if (!baseDir.exists() && !baseDir.mkdirs()) {
-      throw new IOException("Cannot create base safe dir: " + baseDir);
-    }
-
-    String projectId = context.getProject().getProjectId();
-    File projectDir = new File(baseDir, "project-" + projectId);
-    if (!projectDir.exists() && !projectDir.mkdirs()) {
-      // OK jika sudah ada
-    }
-
-    File dest = new File(projectDir, src.getName());
+    File dest = new File(safeInputDir, destName);
     Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
     return dest;
   }
@@ -216,7 +221,11 @@ public class RunR8 extends DexTask implements AndroidTask {
     File inputsFile = new File(context.getPaths().getTmpDir(), "r8-final-inputs.txt");
     try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
       for (File input : inputs) {
-        w.println(input.getAbsolutePath());
+        if (input.exists()) {
+          w.println(input.getAbsolutePath());
+        } else {
+          context.getReporter().warn("Input file not found: " + input);
+        }
       }
     }
     cmd.add("@" + inputsFile.getAbsolutePath());
