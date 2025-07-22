@@ -18,7 +18,7 @@ public class ComponentConstants {
   /**
    * App constants
    */
-  public static final int APP_INVENTOR_MIN_SDK = 21;
+  public static final int APP_INVENTOR_MIN_SDK = 14;
 
   /**
    * Layout constants.
