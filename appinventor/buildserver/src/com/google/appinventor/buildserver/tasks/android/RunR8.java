@@ -31,40 +31,30 @@ public class RunR8 extends DexTask implements AndroidTask {
       // Kumpulkan semua .class user
       recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
-      // Direktori aman untuk input R8
-      File safeInputDir = getSafeInputDir(context);
-      if (!safeInputDir.exists() && !safeInputDir.mkdirs()) {
-        context.getReporter().error("Gagal membuat direktori input aman: " + safeInputDir);
-        return TaskResult.generateError("mkdir failed");
-      }
-
-      // Salin dan tambahkan library utama
+      // Salin semua .jar ke file sementara yang dikelola JVM
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToSafeLocation(new File(context.getResources().getSimpleAndroidRuntimeJar()), "AndroidRuntime.jar", safeInputDir), mainDexClasses)));
+          createTempCopy(new File(context.getResources().getSimpleAndroidRuntimeJar())), mainDexClasses)));
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToSafeLocation(new File(context.getResources().getKawaRuntime()), "kawa.jar", safeInputDir), mainDexClasses)));
+          createTempCopy(new File(context.getResources().getKawaRuntime())), mainDexClasses)));
 
       final Set<String> criticalJars = getCriticalJars(context);
       for (String jar : criticalJars) {
-        String name = new File(jar).getName();
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToSafeLocation(new File(context.getResource(jar)), name, safeInputDir), mainDexClasses)));
+            createTempCopy(new File(context.getResource(jar))), mainDexClasses)));
       }
 
       if (context.isForCompanion()) {
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToSafeLocation(new File(context.getResources().getAcraRuntime()), "acra.jar", safeInputDir), mainDexClasses)));
+            createTempCopy(new File(context.getResources().getAcraRuntime())), mainDexClasses)));
       }
 
       for (String jar : context.getResources().getSupportJars()) {
         if (criticalJars.contains(jar)) continue;
-        String name = new File(jar).getName();
-        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(context.getResource(jar)), name, safeInputDir)));
+        inputs.add(preDexLibrary(context, createTempCopy(new File(context.getResource(jar)))));
       }
 
       for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
-        String name = new File(lib).getName();
-        inputs.add(preDexLibrary(context, copyToSafeLocation(new File(lib), name, safeInputDir)));
+        inputs.add(preDexLibrary(context, createTempCopy(new File(lib))));
       }
 
       Set<String> addedExtJars = new HashSet<>();
@@ -72,7 +62,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
             context.getExtTypePathCache()) + context.getResources().getSimpleAndroidRuntimeJarPath();
         if (!addedExtJars.contains(sourcePath)) {
-          inputs.add(copyToSafeLocation(new File(sourcePath), "ext-" + type + ".jar", safeInputDir));
+          inputs.add(createTempCopy(new File(sourcePath)));
           addedExtJars.add(sourcePath);
         }
       }
@@ -148,35 +138,16 @@ public class RunR8 extends DexTask implements AndroidTask {
   }
 
   /**
-   * Direktori aman untuk menyimpan input R8
+   * Salin file ke file sementara yang dikelola JVM
    */
-  private File getSafeInputDir(AndroidCompilerContext context) {
-    String id;
-    try {
-      // Coba gunakan projectId dari context
-      id = String.valueOf(context.getProjectId());
-    } catch (Exception e) {
-      // Fallback ke nama proyek
-      id = context.getProject().getProjectName();
-      if (id == null || id.isEmpty()) {
-        id = "fallback";
-      }
-    }
-    return new File(System.getProperty("java.io.tmpdir"), "appinventor-r8/inputs-" + id);
-  }
-
-  /**
-   * Salin file ke lokasi aman dengan nama pendek
-   */
-  private File copyToSafeLocation(File src, String destName, File safeInputDir) throws IOException {
+  private File createTempCopy(File src) throws IOException {
     if (src == null || !src.isFile()) return src;
 
-    File dest = new File(safeInputDir, destName);
-    if (dest.exists()) {
-      dest.delete(); // Hapus dulu jika ada
-    }
-    Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-    return dest;
+    File tempFile = File.createTempFile("r8-input-", ".jar");
+    tempFile.deleteOnExit(); // Opsional: hapus saat JVM keluar
+
+    Files.copy(src.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+    return tempFile;
   }
 
   /**
@@ -192,7 +163,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(context.getResources().getR8Jar());
     cmd.add("com.android.tools.r8.R8");
 
-    // Gunakan direktori output terpisah agar tidak bentrok
+    // Gunakan direktori output terpisah
     File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-final-output");
     if (finalOutputDir.exists()) {
       deleteDirectory(finalOutputDir);
