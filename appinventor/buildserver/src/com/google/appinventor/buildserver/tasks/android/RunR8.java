@@ -14,6 +14,7 @@ import com.google.appinventor.buildserver.util.ExecutorUtils;
 
 import java.io.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes; // ADDED IMPORT
 import java.util.*;
 
 @BuildType(aab = true, apk = true)
@@ -250,4 +251,4 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     return rules;
   }
-}
+                                                            }
