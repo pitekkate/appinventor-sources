@@ -164,13 +164,13 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(context.getResources().getR8Jar());
     cmd.add("com.android.tools.r8.R8");
 
-    // Pastikan output dir ada & kosong
-    File outputDir = context.getPaths().getTmpDir();
-    if (outputDir.exists()) {
-      deleteDirectory(outputDir);
+    // Gunakan direktori output terpisah agar tidak bentrok dengan cache
+    File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-final-output");
+    if (finalOutputDir.exists()) {
+      deleteDirectory(finalOutputDir);
     }
-    if (!outputDir.mkdirs()) {
-      context.getReporter().error("Failed to create output directory: " + outputDir);
+    if (!finalOutputDir.mkdirs()) {
+      context.getReporter().error("Failed to create final output directory: " + finalOutputDir);
       return false;
     }
 
@@ -178,7 +178,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add("--lib");
     cmd.add(context.getResources().getAndroidRuntime());
     cmd.add("--output");
-    cmd.add(outputDir.getAbsolutePath());
+    cmd.add(finalOutputDir.getAbsolutePath());
     cmd.add("--min-api");
     cmd.add(String.valueOf(minSdk));
     cmd.add("--no-desugaring");
