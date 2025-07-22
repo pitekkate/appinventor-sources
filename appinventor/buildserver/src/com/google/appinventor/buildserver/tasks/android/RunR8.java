@@ -151,7 +151,18 @@ public class RunR8 extends DexTask implements AndroidTask {
    * Direktori aman untuk menyimpan input R8
    */
   private File getSafeInputDir(AndroidCompilerContext context) {
-    return new File(System.getProperty("java.io.tmpdir"), "appinventor-r8/inputs-" + context.getProject().getProjectId());
+    String id;
+    try {
+      // Coba gunakan projectId dari context
+      id = String.valueOf(context.getProjectId());
+    } catch (Exception e) {
+      // Fallback ke nama proyek
+      id = context.getProject().getProjectName();
+      if (id == null || id.isEmpty()) {
+        id = "fallback";
+      }
+    }
+    return new File(System.getProperty("java.io.tmpdir"), "appinventor-r8/inputs-" + id);
   }
 
   /**
@@ -161,6 +172,9 @@ public class RunR8 extends DexTask implements AndroidTask {
     if (src == null || !src.isFile()) return src;
 
     File dest = new File(safeInputDir, destName);
+    if (dest.exists()) {
+      dest.delete(); // Hapus dulu jika ada
+    }
     Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
     return dest;
   }
