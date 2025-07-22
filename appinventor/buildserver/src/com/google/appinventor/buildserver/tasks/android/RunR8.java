@@ -14,6 +14,7 @@ import com.google.appinventor.buildserver.util.ExecutorUtils;
 
 import java.io.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 @BuildType(aab = true, apk = true)
