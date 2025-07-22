@@ -30,37 +30,30 @@ public class RunR8 extends DexTask implements AndroidTask {
     try {
       recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
-      // Gunakan direktori aman di build/tmp
-      File safeInputDir = new File(context.getPaths().getTmpDir(), "r8-inputs");
-      if (!safeInputDir.exists() && !safeInputDir.mkdirs()) {
-        context.getReporter().error("Gagal membuat direktori input: " + safeInputDir);
-        return TaskResult.generateError("mkdir failed");
-      }
-
-      // Salin semua input dengan nama pendek
+      // Gunakan createTempCopy untuk semua input
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToBuildTmp(new File(context.getResources().getSimpleAndroidRuntimeJar()), context), mainDexClasses)));
+          createTempCopy(new File(context.getResources().getSimpleAndroidRuntimeJar())), mainDexClasses)));
       inputs.add(preDexLibrary(context, recordForMainDex(
-          copyToBuildTmp(new File(context.getResources().getKawaRuntime()), context), mainDexClasses)));
+          createTempCopy(new File(context.getResources().getKawaRuntime())), mainDexClasses)));
 
       final Set<String> criticalJars = getCriticalJars(context);
       for (String jar : criticalJars) {
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToBuildTmp(new File(context.getResource(jar)), context), mainDexClasses)));
+            createTempCopy(new File(context.getResource(jar))), mainDexClasses)));
       }
 
       if (context.isForCompanion()) {
         inputs.add(preDexLibrary(context, recordForMainDex(
-            copyToBuildTmp(new File(context.getResources().getAcraRuntime()), context), mainDexClasses)));
+            createTempCopy(new File(context.getResources().getAcraRuntime())), mainDexClasses)));
       }
 
       for (String jar : context.getResources().getSupportJars()) {
         if (criticalJars.contains(jar)) continue;
-        inputs.add(preDexLibrary(context, copyToBuildTmp(new File(context.getResource(jar)), context)));
+        inputs.add(preDexLibrary(context, createTempCopy(new File(context.getResource(jar)))));
       }
 
       for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
-        inputs.add(preDexLibrary(context, copyToBuildTmp(new File(lib), context)));
+        inputs.add(preDexLibrary(context, createTempCopy(new File(lib))));
       }
 
       Set<String> addedExtJars = new HashSet<>();
@@ -68,7 +61,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
             context.getExtTypePathCache()) + context.getResources().getSimpleAndroidRuntimeJarPath();
         if (!addedExtJars.contains(sourcePath)) {
-          inputs.add(copyToBuildTmp(new File(sourcePath), context));
+          inputs.add(createTempCopy(new File(sourcePath)));
           addedExtJars.add(sourcePath);
         }
       }
@@ -140,34 +133,29 @@ public class RunR8 extends DexTask implements AndroidTask {
   }
 
   /**
-   * Salin file ke build/tmp/r8-inputs/ dengan nama pendek
+   * Salin file ke file sementara yang dikelola JVM
    */
-  private File copyToBuildTmp(File src, AndroidCompilerContext context) throws IOException {
+  private File createTempCopy(File src) throws IOException {
     if (src == null || !src.isFile()) return src;
 
-    File safeDir = new File(context.getPaths().getTmpDir(), "r8-inputs");
-    if (!safeDir.exists() && !safeDir.mkdirs()) {
-      throw new IOException("Cannot create safe dir: " + safeDir);
-    }
-
-    String name = src.getName();
-    if (name.contains("kawa")) {
-        name = "kawa.jar";
-    } else if (name.contains("AndroidRuntime")) {
-        name = "AndroidRuntime.jar";
-    } else if (name.contains("acra")) {
-        name = "acra.jar";
-    } else if (name.contains("firebase")) {
-        name = "firebase.jar";
+    String prefix;
+    if (src.getName().contains("kawa")) {
+        prefix = "r8-kawa";
+    } else if (src.getName().contains("AndroidRuntime")) {
+        prefix = "r8-runtime";
+    } else if (src.getName().contains("acra")) {
+        prefix = "r8-acra";
+    } else if (src.getName().contains("firebase")) {
+        prefix = "r8-firebase";
     } else {
-        name = "input-" + System.nanoTime() + ".jar";
+        prefix = "r8-input";
     }
 
-    File dest = new File(safeDir, name);
-    if (dest.exists()) dest.delete();
-    Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-    dest.deleteOnExit();
-    return dest;
+    File tempFile = File.createTempFile(prefix + "-", ".jar");
+    tempFile.deleteOnExit();
+
+    Files.copy(src.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+    return tempFile;
   }
 
   /**
