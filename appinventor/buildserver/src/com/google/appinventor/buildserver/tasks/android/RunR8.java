@@ -142,11 +142,20 @@ public class RunR8 extends DexTask implements AndroidTask {
    */
   private File copyToSafeLocation(File src, AndroidCompilerContext context) throws IOException {
     if (src == null || !src.isFile()) return src;
-    File safeDir = new File(context.getPaths().getTmpDir(), "r8-inputs");
-    if (!safeDir.exists() && !safeDir.mkdirs()) {
-      throw new IOException("Cannot create safe dir: " + safeDir);
+
+    // Gunakan /tmp/appinventor-r8/project-{id}/ agar tidak ikut dibersihkan
+    File baseDir = new File(System.getProperty("java.io.tmpdir"), "appinventor-r8");
+    if (!baseDir.exists() && !baseDir.mkdirs()) {
+      throw new IOException("Cannot create base safe dir: " + baseDir);
     }
-    File dest = new File(safeDir, src.getName());
+
+    String projectId = context.getProject().getProjectId();
+    File projectDir = new File(baseDir, "project-" + projectId);
+    if (!projectDir.exists() && !projectDir.mkdirs()) {
+      // OK jika sudah ada
+    }
+
+    File dest = new File(projectDir, src.getName());
     Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
     return dest;
   }
@@ -164,7 +173,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(context.getResources().getR8Jar());
     cmd.add("com.android.tools.r8.R8");
 
-    // Gunakan direktori output terpisah agar tidak bentrok dengan cache
+    // Gunakan direktori output terpisah agar tidak bentrok
     File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-final-output");
     if (finalOutputDir.exists()) {
       deleteDirectory(finalOutputDir);
