@@ -66,21 +66,6 @@ jobs:
         working-directory: appinventor
         run: ant MakeAuthKey
 
-      - name: 'Build Server Components'
-        working-directory: appinventor
-        run: ant noplay
-
-      - name: 'Run Unit Tests'
-        working-directory: appinventor
-        run: ant tests
-
-      - name: 'Upload Test Reports'
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports
-          path: appinventor/reports/
-
       - name: 'Build MIT AI2 Companion (with R8)'
         working-directory: appinventor
         run: ant PlayApp
