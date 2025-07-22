@@ -15,6 +15,7 @@ import com.google.appinventor.buildserver.tasks.android.DexTask;
 
 import java.io.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 @BuildType(aab = true, apk = true)
