@@ -14,6 +14,7 @@ import com.google.appinventor.buildserver.util.ExecutorUtils;
 
 import java.io.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes; // IMPOR YANG DIBUTUHKAN
 import java.util.*;
 
 @BuildType(aab = true, apk = true)
@@ -173,14 +174,17 @@ public class RunR8 extends DexTask implements AndroidTask {
 
     // Add input files
     for (File input : inputs) {
+      // Verify input exists
+      if (!input.exists()) {
+        context.getReporter().error("⚠️ Missing input file: " + input.getAbsolutePath());
+        continue;
+      }
       cmd.add(input.getAbsolutePath());
     }
 
     // Log command for debugging
     context.getReporter().info("Executing R8 command:");
-    for (String arg : cmd) {
-      context.getReporter().info("  " + arg);
-    }
+    context.getReporter().info(String.join(" ", cmd));
 
     ByteArrayOutputStream outStream = new ByteArrayOutputStream();
     ByteArrayOutputStream errStream = new ByteArrayOutputStream();
@@ -233,6 +237,7 @@ public class RunR8 extends DexTask implements AndroidTask {
       );
 
       context.getReporter().info("Pre-dexing: " + input.getName());
+      context.getReporter().info("Command: " + String.join(" ", cmd));
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -242,11 +247,21 @@ public class RunR8 extends DexTask implements AndroidTask {
           new PrintStream(out), new PrintStream(err),
           Execution.Timeout.LONG);
 
+      // Capture output
+      String outputStr = out.toString();
+      String errorStr = err.toString();
+      
+      if (!outputStr.isEmpty()) context.getReporter().info("Pre-dex output:\n" + outputStr);
+      if (!errorStr.isEmpty()) context.getReporter().error("Pre-dex error:\n" + errorStr);
+
       if (success) {
         File result = new File(cacheDir, "classes.dex");
         if (result.exists()) {
           Files.move(result.toPath(), cachedDex.toPath(), StandardCopyOption.REPLACE_EXISTING);
+          context.getReporter().info("Pre-dex successful: " + cachedDex.getAbsolutePath());
           return cachedDex;
+        } else {
+          context.getReporter().error("Pre-dex output not found: " + result.getAbsolutePath());
         }
       }
 
@@ -267,4 +282,4 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     return rulesFile;
   }
-}
+                         }
