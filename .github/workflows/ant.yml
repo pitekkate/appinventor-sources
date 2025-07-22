@@ -1,22 +1,28 @@
-name: 'Java CI'
+name: 'App Inventor CI - Build with R8'
 
-on: push
+on:
+  push:
+    branches: [ r8 ]  # Ganti sesuai branch kamu
+  pull_request:
+    branches: [ r8 ]
 
 jobs:
   build:
-    name: 'Build'
+    name: 'Build App Inventor with R8'
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
 
       - name: 'Set up JDK 11'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: 11
-          # cache: ant  # ⛔ DIHAPUS — tidak didukung di v4
+          # Tidak pakai cache: ant → tidak didukung di v4
 
-      - name: 'Checkout submodules'
+      - name: 'Checkout submodules recursively'
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive
@@ -25,54 +31,78 @@ jobs:
         run: |
           rm -rf appinventor/build/
           mkdir -p appinventor/build/logs
+          mkdir -p appinventor/buildserver/tmp
 
-      - name: 'Install 32-bit dependencies'
-        run: sudo apt-get update && sudo apt-get install -y libc6-i386 lib32z1 lib32stdc++6
-
-      - name: 'Download phantomJS'
+      - name: 'Install 32-bit dependencies for native tools'
         run: |
-          mkdir -p /tmp/phantomJS
-          wget -P /tmp/phantomJS/  https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 
+          sudo apt-get update
+          sudo apt-get install -y libc6-i386 lib32z1 lib32stdc++6
 
-      - name: 'Untar and add to PATH'
+      - name: 'Download and setup PhantomJS'
         run: |
-          tar -xf /tmp/phantomJS/phantomjs-2.1.1-linux-x86_64.tar.bz2 -C /tmp/phantomJS/
-          echo '/tmp/phantomJS/phantomjs-2.1.1-linux-x86_64/bin' >> $GITHUB_PATH
+          mkdir -p /tmp/phantomjs
+          wget -q -O /tmp/phantomjs/phantomjs-2.1.1-linux-x86_64.tar.bz2 \
+            https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 
+          tar -xjf /tmp/phantomjs/phantomjs-2.1.1-linux-x86_64.tar.bz2 -C /tmp/phantomjs/
+          echo '/tmp/phantomjs/phantomjs-2.1.1-linux-x86_64/bin' >> $GITHUB_PATH
 
-      - name: 'Configure Ant environment'
+      - name: 'Verify Java & Ant setup'
         run: |
-          echo "build.compiler=javac1.8" > appinventor/local.build.properties
-          echo "java.home=${{ env.JAVA_HOME }}" >> appinventor/local.build.properties
-          echo "ant.build.javac.source=8" >> appinventor/local.build.properties
-          echo "ant.build.javac.target=8" >> appinventor/local.build.properties
-
+          echo "JAVA_HOME = $JAVA_HOME"
           java -version
           javac -version
+          ant -version
 
-      - name: 'Make Auth Key'
+      - name: 'Configure build environment'
+        working-directory: appinventor
+        run: |
+          # Pastikan Ant tahu lokasi JDK
+          echo "java.home=${JAVA_HOME}" > local.build.properties
+          echo "build.compiler=javac1.8" >> local.build.properties
+          echo "ant.build.javac.source=8" >> local.build.properties
+          echo "ant.build.javac.target=8" >> local.build.properties
+
+      - name: 'Generate Auth Key'
+        working-directory: appinventor
         run: ant MakeAuthKey
-        working-directory: appinventor
 
-      - name: 'Build Appinventor'
+      - name: 'Build Server Components'
+        working-directory: appinventor
         run: ant noplay
-        working-directory: appinventor
 
-      - name: 'Run Tests'
+      - name: 'Run Unit Tests'
+        working-directory: appinventor
         run: ant tests
-        working-directory: appinventor
 
-      - name: 'Upload Test Reports to Artifacts'
+      - name: 'Upload Test Reports'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Test Reports
+          name: test-reports
           path: appinventor/reports/
 
-      - name: 'Build Companion'
-        run: ant PlayApp
+      - name: 'Build MIT AI2 Companion (with R8)'
         working-directory: appinventor
+        run: ant PlayApp
 
-      - name: 'Upload Companion to Artifacts'
+      - name: 'Check output: classes.dex existence'
+        if: failure()
+        run: |
+          echo "=== Checking tmp dir ==="
+          find . -path "*/tmp/*.dex" -ls 2>/dev/null || echo "No .dex files found"
+          echo "=== Contents of buildserver/dexCache ==="
+          ls -la appinventor/build/buildserver/dexCache/ 2>/dev/null || echo "dexCache empty or not created"
+
+      - name: 'Upload Companion APK'
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: MIT AI2 Companion
+          name: MIT-AI2-Companion-APK
           path: appinventor/build/buildserver/MIT\ AI2\ Companion.apk
+          if-no-files-found: warn
+
+      - name: 'Debug: Show final logs on failure'
+        if: failure()
+        run: |
+          echo "=== Last 100 lines of build log ==="
+          tail -100 appinventor/build/logs/build.log || echo "No log file"
