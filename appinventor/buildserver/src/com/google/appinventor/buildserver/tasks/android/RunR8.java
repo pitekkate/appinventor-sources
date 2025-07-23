@@ -38,7 +38,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         return TaskResult.generateError("mkdir failed");
       }
 
-      // Salin dan tambahkan library utama
+      // Salin semua input dengan nama pendek
       inputs.add(preDexLibrary(context, recordForMainDex(
           copyToSafeLocation(new File(context.getResources().getSimpleAndroidRuntimeJar()), "AndroidRuntime.jar", safeInputDir), mainDexClasses)));
       inputs.add(preDexLibrary(context, recordForMainDex(
@@ -193,7 +193,6 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(String.valueOf(minSdk));
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
-    cmd.add("--no-verify-inner-class-references"); // ✅ Solusi utk kawa.jar
 
     // Classpath: .class + semua JAR
     List<String> cp = new ArrayList<>();
@@ -298,7 +297,6 @@ public class RunR8 extends DexTask implements AndroidTask {
           "--min-api", String.valueOf(AndroidBuildUtils.computeMinSdk(context)),
           "--no-desugaring",
           "--no-minification",
-          "--no-verify-inner-class-references", // ✅ Wajib untuk kawa.jar
           input.getAbsolutePath()
       );
 
