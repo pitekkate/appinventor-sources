@@ -190,9 +190,6 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
 
-    // ❌ JANGAN GUNAKAN --classpath
-    // R8 tidak mendukung --classpath
-
     // Main dex rules jika perlu
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
       File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
@@ -201,11 +198,14 @@ public class RunR8 extends DexTask implements AndroidTask {
       context.getReporter().info("Using main dex rules: " + rulesFile.getName());
     }
 
-    // Simpan SEMUA input ke file (termasuk .class dan .jar)
+    // Simpan SEMUA input ke file (hanya file .class dan .jar)
     File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
     try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
-      // Tambahkan direktori .class
-      w.println(context.getPaths().getClassesDir().getAbsolutePath());
+      // Tambahkan semua file .class secara rekursif
+      Files.walk(context.getPaths().getClassesDir().toPath())
+           .filter(path -> path.toString().endsWith(".class"))
+           .forEach(path -> w.println(path.toAbsolutePath()));
+
       // Tambahkan semua JAR
       for (File input : inputs) {
         if (input.exists()) {
@@ -333,4 +333,4 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     return rulesFile;
   }
-}
+  }
