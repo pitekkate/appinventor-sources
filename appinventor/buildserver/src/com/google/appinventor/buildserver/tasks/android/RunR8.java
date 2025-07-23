@@ -28,6 +28,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     final List<File> inputs = new ArrayList<>();
 
     try {
+      // Kumpulkan semua .class user
       recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
       // Gunakan createTempCopy untuk semua input
@@ -79,9 +80,11 @@ public class RunR8 extends DexTask implements AndroidTask {
 
       // Tentukan minSdk
       int minSdk = AndroidBuildUtils.computeMinSdk(context);
+
+      // Untuk Companion, turunkan ke API 20 agar bisa pakai --main-dex-rules
       if (context.isForCompanion()) {
         minSdk = 20;
-        context.getReporter().info("⚠️ Forced min-api 20 for Companion");
+        context.getReporter().info("⚠️ Forced min-api 20 for Companion to support main-dex rules");
       }
 
       boolean useMainDexRules = false;
@@ -109,6 +112,7 @@ public class RunR8 extends DexTask implements AndroidTask {
 
       if (!outputDex.exists()) {
         context.getReporter().error("❌ FATAL: R8 did not produce classes.dex at " + outputDex.getAbsolutePath());
+
         File[] files = outputDir.listFiles();
         if (files != null && files.length > 0) {
           context.getReporter().error("📁 Output directory contains:");
@@ -118,6 +122,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         } else {
           context.getReporter().error("📁 Output directory is empty or inaccessible");
         }
+
         return TaskResult.generateError("R8 did not generate classes.dex");
       }
 
@@ -152,7 +157,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
 
     File tempFile = File.createTempFile(prefix + "-", ".jar");
-    tempFile.deleteOnExit();
+    tempFile.deleteOnExit(); // Cegah penghapusan dini
 
     Files.copy(src.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
     return tempFile;
@@ -171,12 +176,13 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add(context.getResources().getR8Jar());
     cmd.add("com.android.tools.r8.R8");
 
+    // Gunakan direktori output terpisah
     File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-output");
     if (finalOutputDir.exists()) {
       deleteDirectory(finalOutputDir);
     }
     if (!finalOutputDir.mkdirs()) {
-      context.getReporter().error("Failed to create output dir");
+      context.getReporter().error("Failed to create final output directory: " + finalOutputDir);
       return false;
     }
 
@@ -198,26 +204,35 @@ public class RunR8 extends DexTask implements AndroidTask {
       context.getReporter().info("Using main dex rules: " + rulesFile.getName());
     }
 
-    // Simpan SEMUA input ke file (hanya file .class dan .jar)
+    // Simpan SEMUA input ke file (tanpa duplikasi)
     File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
-    try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
-      // Tambahkan semua file .class secara rekursif
-      Files.walk(context.getPaths().getClassesDir().toPath())
-           .filter(path -> path.toString().endsWith(".class"))
-           .forEach(path -> w.println(path.toAbsolutePath()));
+    Set<String> uniqueInputs = new HashSet<>();
 
-      // Tambahkan semua JAR
-      for (File input : inputs) {
+    // Tambahkan semua file .class secara rekursif
+    Files.walk(context.getPaths().getClassesDir().toPath())
+         .filter(path -> path.toString().endsWith(".class"))
+         .map(Path::toAbsolutePath)
+         .map(Path::toString)
+         .forEach(uniqueInputs::add);
+
+    // Tambahkan semua JAR
+    for (File input : inputs) {
         if (input.exists()) {
-          w.println(input.getAbsolutePath());
+            uniqueInputs.add(input.getAbsolutePath());
         } else {
-          context.getReporter().warn("Input not found: " + input);
+            context.getReporter().warn("Input not found: " + input);
         }
+    }
+
+    // Tulis ke file
+    try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
+      for (String input : uniqueInputs) {
+        w.println(input);
       }
     }
     cmd.add("@" + inputsFile.getAbsolutePath());
 
-    // Logging
+    // Logging command
     context.getReporter().info("Executing R8 command:");
     for (String arg : cmd) {
       context.getReporter().info("  " + arg);
@@ -333,4 +348,4 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     return rulesFile;
   }
-  }
+        }
