@@ -142,6 +142,7 @@
     <copy toFile="${public.deps.dir}/httpmime.jar" file="${lib.dir}/apache-http/httpmime-4.3.4.jar" />
     <copy toFile="${public.deps.dir}/fusiontables.jar" file="${lib.dir}/fusiontables/fusiontables.jar" />
     <copy toFile="${public.deps.dir}/firebase.jar" file="${lib.dir}/firebase/firebase-client-android-2.5.0.jar" />
+    <copy toFile="${public.deps.dir}/jackson-databind.jar" file="${lib.dir}/fastxml/jackson-databind-2.19.2.jar" />
     <!-- Google Sheets Component -->
     <copy toFile="${public.deps.dir}/googlesheets.jar" file="${lib.dir}/googlesheets/googlesheets.jar" />
     <copy toFile="${public.deps.dir}/opencensus.jar" file="${lib.dir}/googlesheets/opencensus-api-0.26.0.jar" />
