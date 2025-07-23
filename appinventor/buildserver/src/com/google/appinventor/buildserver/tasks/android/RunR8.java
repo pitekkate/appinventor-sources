@@ -192,7 +192,6 @@ public class RunR8 extends DexTask implements AndroidTask {
 
     // ❌ JANGAN GUNAKAN --classpath
     // R8 tidak mendukung --classpath
-    // Semua input harus di daftar di @r8-inputs.txt
 
     // Main dex rules jika perlu
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
