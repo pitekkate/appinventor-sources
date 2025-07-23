@@ -196,6 +196,9 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
 
+    // ✅ Izinkan resource duplikat
+    cmd.add("--allow-duplicate-resource-values");
+
     // Main dex rules jika perlu
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
       File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
@@ -348,4 +351,4 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
     return rulesFile;
   }
-        }
+                                                         }  
