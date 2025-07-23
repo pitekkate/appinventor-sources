@@ -190,16 +190,9 @@ public class RunR8 extends DexTask implements AndroidTask {
     cmd.add("--no-desugaring");
     cmd.add("--no-minification");
 
-    // Classpath: .class + semua JAR
-    List<String> cp = new ArrayList<>();
-    cp.add(context.getPaths().getClassesDir().getAbsolutePath());
-    for (File input : inputs) {
-      if (input.getName().endsWith(".jar")) {
-        cp.add(input.getAbsolutePath());
-      }
-    }
-    cmd.add("--classpath");
-    cmd.add(String.join(File.pathSeparator, cp));
+    // ❌ JANGAN GUNAKAN --classpath
+    // R8 tidak mendukung --classpath
+    // Semua input harus di daftar di @r8-inputs.txt
 
     // Main dex rules jika perlu
     if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
@@ -209,9 +202,12 @@ public class RunR8 extends DexTask implements AndroidTask {
       context.getReporter().info("Using main dex rules: " + rulesFile.getName());
     }
 
-    // Simpan input ke file
+    // Simpan SEMUA input ke file (termasuk .class dan .jar)
     File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
     try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
+      // Tambahkan direktori .class
+      w.println(context.getPaths().getClassesDir().getAbsolutePath());
+      // Tambahkan semua JAR
       for (File input : inputs) {
         if (input.exists()) {
           w.println(input.getAbsolutePath());
