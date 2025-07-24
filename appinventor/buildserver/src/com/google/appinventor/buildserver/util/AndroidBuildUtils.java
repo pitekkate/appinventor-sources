@@ -6,13 +6,14 @@
 package com.google.appinventor.buildserver.util;
 
 import com.google.appinventor.buildserver.context.AndroidCompilerContext;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
 /**
- * Utility class for Android build-related operations.
+ * Utility class for computing Android build parameters such as minSdk.
  */
 public class AndroidBuildUtils {
 
@@ -26,7 +27,7 @@ public class AndroidBuildUtils {
         // Nilai default
         int minSdk = 15;
 
-        // Cek di project.properties
+        // Coba baca dari project.properties
         File projectProps = new File(context.getPaths().getYoungAndroidPath(), "project.properties");
         if (projectProps.exists()) {
             Properties props = new Properties();
