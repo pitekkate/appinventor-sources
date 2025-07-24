@@ -32,29 +32,25 @@ public class RunR8 extends DexTask implements AndroidTask {
             recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
 
             // Gunakan createTempCopy untuk semua input
-            inputs.add(preDexLibrary(context, recordForMainDex(
-                createTempCopy(new File(context.getResources().getSimpleAndroidRuntimeJar())), mainDexClasses)));
-            inputs.add(preDexLibrary(context, recordForMainDex(
-                createTempCopy(new File(context.getResources().getKawaRuntime())), mainDexClasses)));
+            addInputIfValid(context, inputs, context.getResources().getSimpleAndroidRuntimeJar(), mainDexClasses);
+            addInputIfValid(context, inputs, context.getResources().getKawaRuntime(), mainDexClasses);
 
             final Set<String> criticalJars = getCriticalJars(context);
             for (String jar : criticalJars) {
-                inputs.add(preDexLibrary(context, recordForMainDex(
-                    createTempCopy(new File(context.getResource(jar))), mainDexClasses)));
+                addInputIfValid(context, inputs, context.getResource(jar), mainDexClasses);
             }
 
             if (context.isForCompanion()) {
-                inputs.add(preDexLibrary(context, recordForMainDex(
-                    createTempCopy(new File(context.getResources().getAcraRuntime())), mainDexClasses)));
+                addInputIfValid(context, inputs, context.getResources().getAcraRuntime(), mainDexClasses);
             }
 
             for (String jar : context.getResources().getSupportJars()) {
                 if (criticalJars.contains(jar)) continue;
-                inputs.add(preDexLibrary(context, createTempCopy(new File(context.getResource(jar)))));
+                addInput(context, inputs, context.getResource(jar));
             }
 
             for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
-                inputs.add(preDexLibrary(context, createTempCopy(new File(lib))));
+                addInput(context, inputs, lib);
             }
 
             Set<String> addedExtJars = new HashSet<>();
@@ -62,7 +58,7 @@ public class RunR8 extends DexTask implements AndroidTask {
                 String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
                     context.getExtTypePathCache()) + context.getResources().getSimpleAndroidRuntimeJarPath();
                 if (!addedExtJars.contains(sourcePath)) {
-                    inputs.add(createTempCopy(new File(sourcePath)));
+                    addInput(context, inputs, sourcePath);
                     addedExtJars.add(sourcePath);
                 }
             }
@@ -78,13 +74,13 @@ public class RunR8 extends DexTask implements AndroidTask {
                 }
             });
 
-            // Tentukan minSdk menggunakan AndroidBuildUtils
-            int minSdk = AndroidBuildUtils.computeMinSdk(context);
-
-            // Untuk Companion, paksa ke API 20 agar bisa pakai --main-dex-rules
+            // Tentukan minSdk secara manual (karena AndroidBuildUtils bisa bermasalah)
+            int minSdk;
             if (context.isForCompanion()) {
                 minSdk = 20;
-                context.getReporter().info("⚠️ Forced min-api 20 for Companion to support main-dex rules");
+                context.getReporter().info("⚠️ Forced min-api 20 for Companion");
+            } else {
+                minSdk = 21;
             }
 
             boolean useMainDexRules = false;
@@ -131,6 +127,43 @@ public class RunR8 extends DexTask implements AndroidTask {
             context.getReporter().error("Exception in RunR8: " + e.getMessage());
             e.printStackTrace();
             return TaskResult.generateError(e);
+        }
+    }
+
+    /**
+     * Helper: Tambahkan input ke list jika file valid
+     */
+    private void addInput(AndroidCompilerContext context, List<File> inputs, String path) {
+        if (path == null || path.isEmpty()) {
+            context.getReporter().warn("Input path is null or empty");
+            return;
+        }
+        File file = new File(path);
+        if (file.exists()) {
+            try {
+                inputs.add(createTempCopy(file));
+            } catch (IOException e) {
+                context.getReporter().warn("Failed to copy: " + path);
+            }
+        } else {
+            context.getReporter().warn("File not found: " + path);
+        }
+    }
+
+    /**
+     * Helper: Tambahkan input + recordForMainDex
+     */
+    private void addInputIfValid(AndroidCompilerContext context, List<File> inputs, String path, Set<String> mainDexClasses) {
+        if (path == null || path.isEmpty()) return;
+        File file = new File(path);
+        if (file.exists()) {
+            try {
+                inputs.add(preDexLibrary(context, recordForMainDex(createTempCopy(file), mainDexClasses)));
+            } catch (IOException e) {
+                context.getReporter().warn("Failed to process: " + path);
+            }
+        } else {
+            context.getReporter().warn("Critical JAR not found: " + path);
         }
     }
 
@@ -190,7 +223,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         cmd.add("--no-minification");
 
         // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
-        // Opsi ini fiktif dan menyebabkan R8 menolak perintah
+        // Resource duplikat harus diatasi di AAPT2, bukan R8
 
         if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
             File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
@@ -281,6 +314,9 @@ public class RunR8 extends DexTask implements AndroidTask {
                 return cachedDex;
             }
 
+            // Gunakan minSdk 20 untuk Companion
+            int minApi = context.isForCompanion() ? 20 : 21;
+
             List<String> cmd = Arrays.asList(
                 "java",
                 "-Xmx" + context.getChildProcessRam() + "M",
@@ -290,7 +326,7 @@ public class RunR8 extends DexTask implements AndroidTask {
                 "--release",
                 "--lib", context.getResources().getAndroidRuntime(),
                 "--output", cacheDir.getAbsolutePath(),
-                "--min-api", String.valueOf(AndroidBuildUtils.computeMinSdk(context)),
+                "--min-api", String.valueOf(minApi),
                 "--no-desugaring",
                 "--no-minification",
                 input.getAbsolutePath()
