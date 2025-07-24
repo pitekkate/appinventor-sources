@@ -343,4 +343,4 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
         return rulesFile;
     }
-              }
+    }
