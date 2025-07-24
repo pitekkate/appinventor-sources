@@ -135,7 +135,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
 
     /**
-     * Salin file ke file sementara yang dikelola JVM
+     * Salin file ke file sementara
      */
     private File createTempCopy(File src) throws IOException {
         if (src == null || !src.isFile()) return src;
@@ -170,7 +170,6 @@ public class RunR8 extends DexTask implements AndroidTask {
         cmd.add(context.getResources().getR8Jar());
         cmd.add("com.android.tools.r8.R8");
 
-        // Gunakan direktori output terpisah
         File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-output");
         if (finalOutputDir.exists()) {
             deleteDirectory(finalOutputDir);
@@ -193,7 +192,6 @@ public class RunR8 extends DexTask implements AndroidTask {
         // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
         // Resource duplikat harus diatasi di AAPT2, bukan R8
 
-        // Main dex rules jika perlu
         if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
             File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
             cmd.add("--main-dex-rules");
@@ -201,18 +199,15 @@ public class RunR8 extends DexTask implements AndroidTask {
             context.getReporter().info("Using main dex rules: " + rulesFile.getName());
         }
 
-        // Simpan SEMUA input ke file (tanpa duplikasi)
         File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
         Set<String> uniqueInputs = new HashSet<>();
 
-        // Tambahkan semua file .class secara rekursif
         Files.walk(context.getPaths().getClassesDir().toPath())
              .filter(path -> path.toString().endsWith(".class"))
              .map(Path::toAbsolutePath)
              .map(Path::toString)
              .forEach(uniqueInputs::add);
 
-        // Tambahkan semua JAR
         for (File input : inputs) {
             if (input.exists()) {
                 uniqueInputs.add(input.getAbsolutePath());
@@ -221,7 +216,6 @@ public class RunR8 extends DexTask implements AndroidTask {
             }
         }
 
-        // Tulis ke file
         try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
             for (String input : uniqueInputs) {
                 w.println(input);
@@ -230,7 +224,6 @@ public class RunR8 extends DexTask implements AndroidTask {
 
         cmd.add("@" + inputsFile.getAbsolutePath());
 
-        // Logging command
         context.getReporter().info("Executing R8 command:");
         for (String arg : cmd) {
             context.getReporter().info("  " + arg);
