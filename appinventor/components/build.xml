@@ -356,6 +356,7 @@
       <zipfileset src="${lib.dir}/json/json.jar" />
       <fileset dir="${src.dir}">
         <include name="META-INF/*"/>
+        <include name="META-INF/**"/>
         <include name="META-INF/**/*"/>
       </fileset>
     </jar>
