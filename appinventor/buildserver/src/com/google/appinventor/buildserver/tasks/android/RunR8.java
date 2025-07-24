@@ -195,7 +195,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     javaArgs.add("--min-api");
     javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
     if (mainDexClasses != null) {
-      if (USE_D8_PROGUARD_RULES) {
+      if (USE_R8_PROGUARD_RULES) {
         javaArgs.add("--main-dex-rules");
         javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
       } else {
