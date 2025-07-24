@@ -79,6 +79,23 @@ public class AndroidPaths extends Paths {
     this.tmpPackageName = tmpPackageName;
   }
 
+  // ✅ Tambahkan metode ini untuk kompatibilitas dengan RunR8.java
+  /**
+   * Mengembalikan direktori proyek utama (tempat project.properties berada).
+   * Biasanya berada di direktori build.
+   */
+  public File getProjectDir() {
+    return getBuildDir(); // Asumsi: project.properties di root build
+  }
+
+  /**
+   * Mengembalikan direktori Young Android (tempat sumber proyek berada).
+   * Digunakan oleh AndroidBuildUtils untuk membaca konfigurasi.
+   */
+  public File getYoungAndroidPath() {
+    return getBuildDir(); // Bisa diarahkan ke subdirektori jika diperlukan
+  }
+
   @Override
   public String toString() {
     return "Paths{"
