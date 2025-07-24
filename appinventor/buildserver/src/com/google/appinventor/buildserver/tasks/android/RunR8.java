@@ -20,7 +20,7 @@ import java.util.*;
 @BuildType(aab = true, apk = true)
 public class RunR8 extends DexTask implements AndroidTask {
 
-    private static final boolean USE_R8_PROGUARD_RULES = true;
+    private static final boolean USE_D8_PROGUARD_RULES = true;
 
     @Override
     public TaskResult execute(AndroidCompilerContext context) {
@@ -78,17 +78,17 @@ public class RunR8 extends DexTask implements AndroidTask {
                 }
             });
 
-            // Tentukan minSdk secara manual (karena AndroidBuildUtils bisa bermasalah)
-            int minSdk;
+            // Tentukan minSdk menggunakan AndroidBuildUtils
+            int minSdk = AndroidBuildUtils.computeMinSdk(context);
+
+            // Untuk Companion, paksa ke API 20 agar bisa pakai --main-dex-rules
             if (context.isForCompanion()) {
                 minSdk = 20;
-                context.getReporter().info("⚠️ Forced min-api 20 for Companion");
-            } else {
-                minSdk = 21;
+                context.getReporter().info("⚠️ Forced min-api 20 for Companion to support main-dex rules");
             }
 
             boolean useMainDexRules = false;
-            if (USE_R8_PROGUARD_RULES && minSdk < 21) {
+            if (USE_D8_PROGUARD_RULES && minSdk < 21) {
                 mainDexClasses.clear();
                 mainDexClasses.add("com.google.appinventor.components.runtime.*");
                 mainDexClasses.add("com.google.appinventor.components.runtime.**.*");
@@ -190,7 +190,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         cmd.add("--no-minification");
 
         // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
-        // Resource duplikat harus diatasi di AAPT2, bukan R8
+        // Opsi ini fiktif dan menyebabkan R8 menolak perintah
 
         if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
             File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
@@ -281,9 +281,6 @@ public class RunR8 extends DexTask implements AndroidTask {
                 return cachedDex;
             }
 
-            // Gunakan minSdk 20 untuk Companion
-            int minApi = context.isForCompanion() ? 20 : 21;
-
             List<String> cmd = Arrays.asList(
                 "java",
                 "-Xmx" + context.getChildProcessRam() + "M",
@@ -293,7 +290,7 @@ public class RunR8 extends DexTask implements AndroidTask {
                 "--release",
                 "--lib", context.getResources().getAndroidRuntime(),
                 "--output", cacheDir.getAbsolutePath(),
-                "--min-api", String.valueOf(minApi),
+                "--min-api", String.valueOf(AndroidBuildUtils.computeMinSdk(context)),
                 "--no-desugaring",
                 "--no-minification",
                 input.getAbsolutePath()
@@ -343,4 +340,4 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
         return rulesFile;
     }
-                }
+}
