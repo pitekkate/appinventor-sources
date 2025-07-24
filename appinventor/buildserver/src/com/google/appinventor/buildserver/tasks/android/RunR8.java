@@ -74,13 +74,13 @@ public class RunR8 extends DexTask implements AndroidTask {
                 }
             });
 
-            // Tentukan minSdk secara manual (karena AndroidBuildUtils bisa bermasalah)
-            int minSdk;
+            // Gunakan AndroidBuildUtils untuk tentukan minSdk
+            int minSdk = AndroidBuildUtils.computeMinSdk(context);
+
+            // Override untuk Companion
             if (context.isForCompanion()) {
                 minSdk = 20;
-                context.getReporter().info("⚠️ Forced min-api 20 for Companion");
-            } else {
-                minSdk = 21;
+                context.getReporter().info("⚠️ Forced min-api 20 for Companion to support main-dex rules");
             }
 
             boolean useMainDexRules = false;
@@ -131,7 +131,24 @@ public class RunR8 extends DexTask implements AndroidTask {
     }
 
     /**
-     * Helper: Tambahkan input ke list jika file valid
+     * Helper: Tambahkan input ke list jika file valid (untuk JAR kritis)
+     */
+    private void addInputIfValid(AndroidCompilerContext context, List<File> inputs, String path, Set<String> mainDexClasses) {
+        if (path == null || path.isEmpty()) return;
+        File file = new File(path);
+        if (file.exists()) {
+            try {
+                inputs.add(preDexLibrary(context, recordForMainDex(createTempCopy(file), mainDexClasses)));
+            } catch (IOException e) {
+                context.getReporter().warn("Failed to process: " + path);
+            }
+        } else {
+            context.getReporter().warn("Critical JAR not found: " + path);
+        }
+    }
+
+    /**
+     * Helper: Tambahkan input biasa
      */
     private void addInput(AndroidCompilerContext context, List<File> inputs, String path) {
         if (path == null || path.isEmpty()) {
@@ -147,23 +164,6 @@ public class RunR8 extends DexTask implements AndroidTask {
             }
         } else {
             context.getReporter().warn("File not found: " + path);
-        }
-    }
-
-    /**
-     * Helper: Tambahkan input + recordForMainDex
-     */
-    private void addInputIfValid(AndroidCompilerContext context, List<File> inputs, String path, Set<String> mainDexClasses) {
-        if (path == null || path.isEmpty()) return;
-        File file = new File(path);
-        if (file.exists()) {
-            try {
-                inputs.add(preDexLibrary(context, recordForMainDex(createTempCopy(file), mainDexClasses)));
-            } catch (IOException e) {
-                context.getReporter().warn("Failed to process: " + path);
-            }
-        } else {
-            context.getReporter().warn("Critical JAR not found: " + path);
         }
     }
 
@@ -223,7 +223,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         cmd.add("--no-minification");
 
         // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
-        // Resource duplikat harus diatasi di AAPT2, bukan R8
+        // Opsi ini fiktif dan menyebabkan R8 menolak perintah
 
         if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
             File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
@@ -314,9 +314,6 @@ public class RunR8 extends DexTask implements AndroidTask {
                 return cachedDex;
             }
 
-            // Gunakan minSdk 20 untuk Companion
-            int minApi = context.isForCompanion() ? 20 : 21;
-
             List<String> cmd = Arrays.asList(
                 "java",
                 "-Xmx" + context.getChildProcessRam() + "M",
@@ -326,7 +323,7 @@ public class RunR8 extends DexTask implements AndroidTask {
                 "--release",
                 "--lib", context.getResources().getAndroidRuntime(),
                 "--output", cacheDir.getAbsolutePath(),
-                "--min-api", String.valueOf(minApi),
+                "--min-api", String.valueOf(AndroidBuildUtils.computeMinSdk(context)),
                 "--no-desugaring",
                 "--no-minification",
                 input.getAbsolutePath()
