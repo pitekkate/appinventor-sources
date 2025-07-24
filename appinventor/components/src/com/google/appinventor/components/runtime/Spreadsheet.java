@@ -122,6 +122,8 @@ import java.util.regex.Pattern;
 @UsesLibraries({
     "googlesheets.jar",
     "jackson-core.jar",
+    "jackson-annotations.jar",
+    "jackson-databind.jar",
     "google-api-client.jar",
     "google-api-client-jackson2.jar",
     "google-http-client.jar",
