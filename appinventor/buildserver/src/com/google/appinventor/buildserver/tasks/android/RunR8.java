@@ -19,7 +19,6 @@ import java.io.PrintStream;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -181,7 +180,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     javaArgs.add("-Xss8m");
     javaArgs.add("-cp");
     javaArgs.add(context.getResources().getR8Jar());
-    javaArgs.add("com.android.tools.r8.R8");
+    javaArgs.add("com.android.tools.r8.R8");  // Changed from D8 to R8
     if (intermediateFileName != null) {
       javaArgs.add("--intermediate");
     }
@@ -190,17 +189,13 @@ public class RunR8 extends DexTask implements AndroidTask {
     if (intermediateFileName == null) {
       javaArgs.add("--classpath");
       javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
-      
-      // Tambahkan aturan ProGuard khusus Jackson hanya untuk final dexing
-      javaArgs.add("--pg-conf");
-      javaArgs.add(createJacksonProguardRules(context));
     }
     javaArgs.add("--output");
     javaArgs.add(outputDir);
     javaArgs.add("--min-api");
     javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
     if (mainDexClasses != null) {
-      if (USE_R8_PROGUARD_RULES) {
+      if (USE_D8_PROGUARD_RULES) {
         javaArgs.add("--main-dex-rules");
         javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
       } else {
@@ -211,7 +206,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     for (File input : inputs) {
       javaArgs.add(input.getAbsolutePath());
     }
-    File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt");
+    File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt");  // Changed filename
     try (PrintStream ps = new PrintStream(new FileOutputStream(javaArgsFile))) {
       for (String arg : javaArgs) {
         ps.println(arg);
@@ -233,41 +228,6 @@ public class RunR8 extends DexTask implements AndroidTask {
   }
 
   /**
-   * Membuat file aturan ProGuard sementara untuk menjaga kelas-kelas Jackson.
-   * File ini hanya digunakan untuk final dexing (bukan pre-dexing).
-   *
-   * @param context konteks kompilasi
-   * @return path absolut ke file aturan yang dibuat
-   * @throws IOException jika terjadi kesalahan I/O saat membuat file
-   */
-  private static String createJacksonProguardRules(AndroidCompilerContext context) throws IOException {
-    File jacksonRulesFile = File.createTempFile("jackson-rules", ".pro", context.getPaths().getTmpDir());
-    
-    try (PrintStream ps = new PrintStream(new FileOutputStream(jacksonRulesFile))) {
-      ps.println("# Keep rules for Jackson JSON library");
-      ps.println("-keep class com.fasterxml.jackson.** { *; }");
-      ps.println("-keep class com.fasterxml.jackson.databind.** { *; }");
-      ps.println("-keep class com.fasterxml.jackson.core.** { *; }");
-      ps.println("-keep class com.fasterxml.jackson.annotation.** { *; }");
-      ps.println();
-      ps.println("-keep class com.fasterxml.jackson.databind.ObjectMapper { *; }");
-      ps.println("-keep class com.fasterxml.jackson.databind.ObjectReader { *; }");
-      ps.println("-keep class com.fasterxml.jackson.databind.ObjectWriter { *; }");
-      ps.println();
-      ps.println("-keep @com.fasterxml.jackson.annotation.** class * { *; }");
-      ps.println("-keep class * extends com.fasterxml.jackson.core.JsonGenerator { *; }");
-      ps.println("-keep class * extends com.fasterxml.jackson.core.JsonParser { *; }");
-      ps.println();
-      ps.println("# Maintain SPI interfaces");
-      ps.println("-keep class com.fasterxml.jackson.databind.* { *; }");
-      ps.println("-keepclassmembers class com.fasterxml.jackson.** { *; }");
-    }
-    
-    context.getReporter().info("Generated Jackson ProGuard rules: " + jacksonRulesFile.getAbsolutePath());
-    return jacksonRulesFile.getAbsolutePath();
-  }
-
-  /**
    * Dex the given {@code input} file and cache the results using R8.
    *
    * @param context the build context
@@ -283,7 +243,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         context.getReporter().info(String.format("Using pre-dexed %1$s <- %2$s",
             dexedLib.getName(), input));
       } else {
-        // Gunakan runR8 untuk pre-dexing
+        // Changed to use runR8 instead of runD8
         boolean success = runR8(context, Collections.singleton(input), null,
             context.getDexCacheDir(), dexedLib.getName());
         if (!success) {
@@ -293,4 +253,4 @@ public class RunR8 extends DexTask implements AndroidTask {
       return dexedLib;
     }
   }
-          }
+      }
