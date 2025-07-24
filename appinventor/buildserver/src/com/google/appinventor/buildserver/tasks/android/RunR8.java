@@ -11,336 +11,286 @@ import com.google.appinventor.buildserver.context.AndroidCompilerContext;
 import com.google.appinventor.buildserver.interfaces.AndroidTask;
 import com.google.appinventor.buildserver.util.Execution;
 import com.google.appinventor.buildserver.util.ExecutorUtils;
-
-import java.io.*;
-import java.nio.file.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @BuildType(aab = true, apk = true)
 public class RunR8 extends DexTask implements AndroidTask {
+  private static final boolean USE_D8_PROGUARD_RULES = true;
 
-    private static final boolean USE_D8_PROGUARD_RULES = true;
+  @Override
+  public TaskResult execute(AndroidCompilerContext context) {
+    Set<String> mainDexClasses = new HashSet<>();
+    final List<File> inputs = new ArrayList<>();
+    try {
+      recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
+      inputs.add(preDexLibrary(context, recordForMainDex(
+          new File(context.getResources().getSimpleAndroidRuntimeJar()), mainDexClasses)));
+      inputs.add(preDexLibrary(context, recordForMainDex(
+          new File(context.getResources().getKawaRuntime()), mainDexClasses)));
 
-    @Override
-    public TaskResult execute(AndroidCompilerContext context) {
-        Set<String> mainDexClasses = new HashSet<>();
-        final List<File> inputs = new ArrayList<>();
+      final Set<String> criticalJars = getCriticalJars(context);
 
-        try {
-            // Kumpulkan semua .class user
-            recordForMainDex(context.getPaths().getClassesDir(), mainDexClasses);
+      for (String jar : criticalJars) {
+        inputs.add(preDexLibrary(context, recordForMainDex(
+            new File(context.getResource(jar)), mainDexClasses)));
+      }
 
-            // Gunakan createTempCopy untuk semua input
-            inputs.add(preDexLibrary(context, recordForMainDex(
-                createTempCopy(new File(context.getResources().getSimpleAndroidRuntimeJar())), mainDexClasses)));
-            inputs.add(preDexLibrary(context, recordForMainDex(
-                createTempCopy(new File(context.getResources().getKawaRuntime())), mainDexClasses)));
+      // Only include ACRA for the companion app
+      if (context.isForCompanion()) {
+        inputs.add(preDexLibrary(context, recordForMainDex(
+            new File(context.getResources().getAcraRuntime()), mainDexClasses)));
+      }
 
-            final Set<String> criticalJars = getCriticalJars(context);
-            for (String jar : criticalJars) {
-                inputs.add(preDexLibrary(context, recordForMainDex(
-                    createTempCopy(new File(context.getResource(jar))), mainDexClasses)));
-            }
-
-            if (context.isForCompanion()) {
-                inputs.add(preDexLibrary(context, recordForMainDex(
-                    createTempCopy(new File(context.getResources().getAcraRuntime())), mainDexClasses)));
-            }
-
-            for (String jar : context.getResources().getSupportJars()) {
-                if (criticalJars.contains(jar)) continue;
-                inputs.add(preDexLibrary(context, createTempCopy(new File(context.getResource(jar)))));
-            }
-
-            for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
-                inputs.add(preDexLibrary(context, createTempCopy(new File(lib))));
-            }
-
-            Set<String> addedExtJars = new HashSet<>();
-            for (String type : context.getExtCompTypes()) {
-                String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
-                    context.getExtTypePathCache()) + context.getResources().getSimpleAndroidRuntimeJarPath();
-                if (!addedExtJars.contains(sourcePath)) {
-                    inputs.add(createTempCopy(new File(sourcePath)));
-                    addedExtJars.add(sourcePath);
-                }
-            }
-
-            // Tambahkan semua .class file
-            Files.walkFileTree(context.getPaths().getClassesDir().toPath(), new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.toString().endsWith(".class")) {
-                        inputs.add(file.toFile());
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-
-            // Tentukan minSdk secara manual (karena AndroidBuildUtils tidak ada)
-            int minSdk;
-            if (context.isForCompanion()) {
-                minSdk = 20;
-                context.getReporter().info("⚠️ Forced min-api 20 for Companion");
-            } else {
-                minSdk = 21;
-            }
-
-            boolean useMainDexRules = false;
-            if (USE_D8_PROGUARD_RULES && minSdk < 21) {
-                mainDexClasses.clear();
-                mainDexClasses.add("com.google.appinventor.components.runtime.*");
-                mainDexClasses.add("com.google.appinventor.components.runtime.**.*");
-                mainDexClasses.add("kawa.**.*");
-                mainDexClasses.add("androidx.core.content.FileProvider");
-                mainDexClasses.add("androidx.appcompat.**.*");
-                mainDexClasses.add("androidx.collection.*");
-                mainDexClasses.add("androidx.vectordrawable.**.*");
-                mainDexClasses.add(context.getProject().getMainClass());
-                useMainDexRules = true;
-            }
-
-            // Jalankan R8
-            if (!runR8Final(context, inputs, useMainDexRules ? mainDexClasses : null, minSdk)) {
-                return TaskResult.generateError("R8 failed.");
-            }
-
-            // Cek hasil akhir
-            File outputDir = context.getPaths().getTmpDir();
-            File outputDex = new File(outputDir, "classes.dex");
-            if (!outputDex.exists()) {
-                context.getReporter().error("❌ FATAL: R8 did not produce classes.dex at " + outputDex.getAbsolutePath());
-                File[] files = outputDir.listFiles();
-                if (files != null && files.length > 0) {
-                    context.getReporter().error("📁 Output directory contains:");
-                    for (File f : files) {
-                        context.getReporter().error("   " + f.getName() + " → " + f.length() + " bytes");
-                    }
-                } else {
-                    context.getReporter().error("📁 Output directory is empty or inaccessible");
-                }
-                return TaskResult.generateError("R8 did not generate classes.dex");
-            }
-
-            context.getReporter().info("✅ Successfully generated classes.dex: " + outputDex.length() + " bytes");
-            context.getResources().getDexFiles().add(outputDex);
-            return TaskResult.generateSuccess();
-
-        } catch (IOException e) {
-            context.getReporter().error("Exception in RunR8: " + e.getMessage());
-            e.printStackTrace();
-            return TaskResult.generateError(e);
+      for (String jar : context.getResources().getSupportJars()) {
+        if (criticalJars.contains(jar)) {  // already covered above
+          continue;
         }
+        inputs.add(preDexLibrary(context, new File(context.getResource(jar))));
+      }
+
+      // Add the rest of the libraries in any order
+      for (String lib : context.getComponentInfo().getUniqueLibsNeeded()) {
+        inputs.add(preDexLibrary(context, new File(lib)));
+      }
+
+      // Add extension libraries
+      Set<String> addedExtJars = new HashSet<>();
+      for (String type : context.getExtCompTypes()) {
+        String sourcePath = ExecutorUtils.getExtCompDirPath(type, context.getProject(),
+            context.getExtTypePathCache())
+            + context.getResources().getSimpleAndroidRuntimeJarPath();
+        if (!addedExtJars.contains(sourcePath)) {
+          inputs.add(new File(sourcePath));
+          addedExtJars.add(sourcePath);
+        }
+      }
+
+      Files.walkFileTree(context.getPaths().getClassesDir().toPath(), new FileVisitor<Path>() {
+        @Override
+        public FileVisitResult preVisitDirectory(Path dir,
+            BasicFileAttributes attrs) {
+          return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file,
+            BasicFileAttributes attrs) {
+          if (file.toString().endsWith(".class")) {
+            inputs.add(file.toFile());
+          }
+          return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) {
+          return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+          return FileVisitResult.CONTINUE;
+        }
+      });
+
+      if (USE_D8_PROGUARD_RULES) {
+        // Google is moving to proguard-style rules for computing the main dex in R8
+        mainDexClasses.clear();
+        // Components
+        mainDexClasses.add("com.google.appinventor.components.runtime.*");
+        // Multidex and other utility classes
+        mainDexClasses.add("com.google.appinventor.components.runtime.**.*");
+        // Kawa
+        // TODO(ewpatton): Figure out why this gets triggered before Multidex completes
+        mainDexClasses.add("kawa.**.*");
+
+        // Android-related classes
+        mainDexClasses.add("androidx.core.content.FileProvider");
+        mainDexClasses.add("androidx.appcompat.**.*");
+        mainDexClasses.add("androidx.collection.*");
+        mainDexClasses.add("androidx.vectordrawable.**.*");
+        mainDexClasses.add(context.getProject().getMainClass());
+      }
+
+      // Run the final R8 step to include user's compiled screens
+      if (!runR8(context, inputs, mainDexClasses)) {
+        return TaskResult.generateError("R8 failed.");
+      }
+
+      // Aggregate all classes.dex files output by R8
+      File[] files = context.getPaths().getTmpDir().listFiles((dir, name) -> name.endsWith(".dex"));
+      if (files == null) {
+        throw new FileNotFoundException("Could not find classes.dex");
+      }
+      Collections.addAll(context.getResources().getDexFiles(), files);
+      return TaskResult.generateSuccess();
+    } catch (IOException e) {
+      return TaskResult.generateError(e);
     }
+  }
 
-    /**
-     * Salin file ke file sementara
-     */
-    private File createTempCopy(File src) throws IOException {
-        if (src == null || !src.isFile()) return src;
-        String prefix;
-        if (src.getName().contains("kawa")) {
-            prefix = "r8-kawa";
-        } else if (src.getName().contains("AndroidRuntime")) {
-            prefix = "r8-runtime";
-        } else if (src.getName().contains("acra")) {
-            prefix = "r8-acra";
-        } else if (src.getName().contains("firebase")) {
-            prefix = "r8-firebase";
-        } else {
-            prefix = "r8-input";
-        }
-        File tempFile = File.createTempFile(prefix + "-", ".jar");
-        tempFile.deleteOnExit();
-        Files.copy(src.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        return tempFile;
+  /**
+   * Runs Android SDK's R8 program to create a dex file for the given collection of inputs. The
+   * classes.dex file(s) will be output to the active context's build directory.
+   *
+   * @param context the build context
+   * @param inputs collection of input files. For a complete list of supported input types see
+   *               <a href="https://developer.android.com/studio/build/shrink-code">R8</a>.
+   * @return true if the process succeeded
+   * @throws IOException if the dex file is unable to be moved to the {@code intermediateFileName}
+   */
+  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs,
+      Set<String> mainDexClasses) throws IOException {
+    return runR8(context, inputs, mainDexClasses, context.getPaths().getTmpDir().getAbsolutePath(),
+        null);
+  }
+
+  /**
+   * Run Android SDK's R8 program to create a dex file for the given collection of inputs.
+   *
+   * @param context the build context
+   * @param inputs collection of input files. For a complete list of supported input types see
+   *               <a href="https://developer.android.com/studio/build/shrink-code">R8</a>.
+   * @param outputDir the destination for the classes.dex file
+   * @param intermediateFileName an alternative name to use for the dex file when pre-dexing
+   * @return true if the process succeeded
+   * @throws IOException if the dex file is unable to be moved to the {@code intermediateFileName}
+   */
+  private static boolean runR8(AndroidCompilerContext context, Collection<File> inputs,
+      Set<String> mainDexClasses, String outputDir, String intermediateFileName)
+      throws IOException {
+    List<String> arguments = new ArrayList<>();
+    List<String> javaArgs = new ArrayList<>();
+    arguments.add("java");
+    javaArgs.add("-Xmx" + context.getChildProcessRam() + "M");
+    javaArgs.add("-Xss8m");
+    javaArgs.add("-cp");
+    javaArgs.add(context.getResources().getD8Jar());
+    javaArgs.add("com.android.tools.r8.R8");
+    if (intermediateFileName != null) {
+      javaArgs.add("--intermediate");
     }
-
-    /**
-     * Jalankan R8 untuk hasilkan classes.dex
-     */
-    private boolean runR8Final(AndroidCompilerContext context, Collection<File> inputs,
-                             Set<String> mainDexClasses, int minSdk) throws IOException {
-        List<String> cmd = new ArrayList<>();
-        cmd.add("java");
-        cmd.add("-Xmx" + context.getChildProcessRam() + "M");
-        cmd.add("-Xss8m");
-        cmd.add("-cp");
-        cmd.add(context.getResources().getR8Jar());
-        cmd.add("com.android.tools.r8.R8");
-
-        File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-output");
-        if (finalOutputDir.exists()) {
-            deleteDirectory(finalOutputDir);
-        }
-        if (!finalOutputDir.mkdirs()) {
-            context.getReporter().error("Failed to create final output directory: " + finalOutputDir);
-            return false;
-        }
-
-        cmd.add("--release");
-        cmd.add("--lib");
-        cmd.add(context.getResources().getAndroidRuntime());
-        cmd.add("--output");
-        cmd.add(finalOutputDir.getAbsolutePath());
-        cmd.add("--min-api");
-        cmd.add(String.valueOf(minSdk));
-        cmd.add("--no-desugaring");
-        cmd.add("--no-minification");
-
-        // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
-        // Resource duplikat harus diatasi di AAPT2, bukan R8
-
-        if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
-            File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
-            cmd.add("--main-dex-rules");
-            cmd.add(rulesFile.getAbsolutePath());
-            context.getReporter().info("Using main dex rules: " + rulesFile.getName());
-        }
-
-        File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
-        Set<String> uniqueInputs = new HashSet<>();
-
-        Files.walk(context.getPaths().getClassesDir().toPath())
-             .filter(path -> path.toString().endsWith(".class"))
-             .map(Path::toAbsolutePath)
-             .map(Path::toString)
-             .forEach(uniqueInputs::add);
-
-        for (File input : inputs) {
-            if (input.exists()) {
-                uniqueInputs.add(input.getAbsolutePath());
-            } else {
-                context.getReporter().warn("Input not found: " + input);
-            }
-        }
-
-        try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
-            for (String input : uniqueInputs) {
-                w.println(input);
-            }
-        }
-
-        cmd.add("@" + inputsFile.getAbsolutePath());
-
-        context.getReporter().info("Executing R8 command:");
-        for (String arg : cmd) {
-            context.getReporter().info("  " + arg);
-        }
-
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-        ByteArrayOutputStream errStream = new ByteArrayOutputStream();
-
-        synchronized (context.getResources().getSyncKawaOrDx()) {
-            boolean success = Execution.execute(
-                context.getPaths().getTmpDir(),
-                cmd.toArray(new String[0]),
-                new PrintStream(outStream),
-                new PrintStream(errStream),
-                Execution.Timeout.LONG
-            );
-
-            String output = outStream.toString();
-            String error = errStream.toString();
-
-            if (!output.isEmpty()) context.getReporter().info("R8 Output:\n" + output);
-            if (!error.isEmpty()) context.getReporter().error("R8 Error:\n" + error);
-
-            return success;
-        }
+    javaArgs.add("--lib");
+    javaArgs.add(context.getResources().getAndroidRuntime());
+    if (intermediateFileName == null) {
+      javaArgs.add("--classpath");
+      javaArgs.add(context.getPaths().getClassesDir().getAbsolutePath());
+      
+      // Tambahkan aturan ProGuard khusus Jackson hanya untuk final dexing
+      javaArgs.add("--pg-conf");
+      javaArgs.add(createJacksonProguardRules(context));
     }
-
-    /**
-     * Hapus direktori rekursif
-     */
-    private void deleteDirectory(File dir) throws IOException {
-        if (dir == null || !dir.exists()) return;
-        if (dir.isDirectory()) {
-            File[] children = dir.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    deleteDirectory(child);
-                }
-            }
-        }
-        if (!dir.delete()) {
-            throw new IOException("Failed to delete: " + dir);
-        }
+    javaArgs.add("--output");
+    javaArgs.add(outputDir);
+    javaArgs.add("--min-api");
+    javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
+    if (mainDexClasses != null) {
+      if (USE_D8_PROGUARD_RULES) {
+        javaArgs.add("--main-dex-rules");
+        javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
+      } else {
+        javaArgs.add("--main-dex-list");
+        javaArgs.add(writeClassList(context.getPaths().getClassesDir(), mainDexClasses));
+      }
     }
-
-    /**
-     * Pre-dex library
-     */
-    private File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
-        synchronized (PREDEX_CACHE) {
-            File cacheDir = new File(context.getDexCacheDir());
-            File cachedDex = getDexFileName(input, cacheDir);
-            if (cachedDex.isFile()) {
-                context.getReporter().info("Using cached: " + cachedDex.getName());
-                return cachedDex;
-            }
-
-            // Gunakan minSdk 20 untuk Companion
-            int minApi = context.isForCompanion() ? 20 : 21;
-
-            List<String> cmd = Arrays.asList(
-                "java",
-                "-Xmx" + context.getChildProcessRam() + "M",
-                "-Xss8m",
-                "-cp", context.getResources().getR8Jar(),
-                "com.android.tools.r8.R8",
-                "--release",
-                "--lib", context.getResources().getAndroidRuntime(),
-                "--output", cacheDir.getAbsolutePath(),
-                "--min-api", String.valueOf(minApi),
-                "--no-desugaring",
-                "--no-minification",
-                input.getAbsolutePath()
-            );
-
-            context.getReporter().info("Pre-dexing: " + input.getName());
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            ByteArrayOutputStream err = new ByteArrayOutputStream();
-
-            boolean success = Execution.execute(
-                context.getPaths().getTmpDir(),
-                cmd.toArray(new String[0]),
-                new PrintStream(out),
-                new PrintStream(err),
-                Execution.Timeout.LONG
-            );
-
-            if (!out.toString().isEmpty()) {
-                context.getReporter().info("R8 Output:\n" + out.toString());
-            }
-            if (!err.toString().isEmpty()) {
-                context.getReporter().error("R8 Error:\n" + err.toString());
-            }
-
-            if (success) {
-                File result = new File(cacheDir, "classes.dex");
-                if (result.exists()) {
-                    Files.move(result.toPath(), cachedDex.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    return cachedDex;
-                }
-            }
-
-            context.getReporter().warn("R8 pre-dex failed, falling back: " + input);
-            return input;
-        }
+    for (File input : inputs) {
+      javaArgs.add(input.getAbsolutePath());
     }
-
-    /**
-     * Tulis aturan ProGuard-style
-     */
-    private File writeClassRulesToFile(File dir, Set<String> classes) throws IOException {
-        File rulesFile = new File(dir, "main_dex_rules.pro");
-        try (PrintWriter w = new PrintWriter(new FileWriter(rulesFile))) {
-            for (String cls : classes) {
-                w.println("-keep class " + cls + " { *; }");
-            }
-        }
-        return rulesFile;
+    File javaArgsFile = new File(context.getPaths().getTmpDir(), "r8arguments.txt");
+    try (PrintStream ps = new PrintStream(new FileOutputStream(javaArgsFile))) {
+      for (String arg : javaArgs) {
+        ps.println(arg);
+      }
     }
-                                                   }
+    arguments.add("@" + javaArgsFile.getAbsolutePath());
+    synchronized (context.getResources().getSyncKawaOrDx()) {
+      boolean result = Execution.execute(context.getPaths().getTmpDir(),
+          arguments.toArray(new String[0]), System.out, System.err, Execution.Timeout.LONG);
+      if (!result) {
+        return false;
+      }
+    }
+    if (intermediateFileName != null) {
+      Files.move(FileSystems.getDefault().getPath(outputDir, "classes.dex"),
+          FileSystems.getDefault().getPath(outputDir, intermediateFileName));
+    }
+    return true;
+  }
+
+  /**
+   * Membuat file aturan ProGuard sementara untuk menjaga kelas-kelas Jackson.
+   * File ini hanya digunakan untuk final dexing (bukan pre-dexing).
+   *
+   * @param context konteks kompilasi
+   * @return path absolut ke file aturan yang dibuat
+   * @throws IOException jika terjadi kesalahan I/O saat membuat file
+   */
+  private static String createJacksonProguardRules(AndroidCompilerContext context) throws IOException {
+    File jacksonRulesFile = File.createTempFile("jackson-rules", ".pro", context.getPaths().getTmpDir());
+    
+    try (PrintStream ps = new PrintStream(new FileOutputStream(jacksonRulesFile))) {
+      ps.println("# Keep rules for Jackson JSON library");
+      ps.println("-keep class com.fasterxml.jackson.** { *; }");
+      ps.println("-keep class com.fasterxml.jackson.databind.** { *; }");
+      ps.println("-keep class com.fasterxml.jackson.core.** { *; }");
+      ps.println("-keep class com.fasterxml.jackson.annotation.** { *; }");
+      ps.println();
+      ps.println("-keep class com.fasterxml.jackson.databind.ObjectMapper { *; }");
+      ps.println("-keep class com.fasterxml.jackson.databind.ObjectReader { *; }");
+      ps.println("-keep class com.fasterxml.jackson.databind.ObjectWriter { *; }");
+      ps.println();
+      ps.println("-keep @com.fasterxml.jackson.annotation.** class * { *; }");
+      ps.println("-keep class * extends com.fasterxml.jackson.core.JsonGenerator { *; }");
+      ps.println("-keep class * extends com.fasterxml.jackson.core.JsonParser { *; }");
+      ps.println();
+      ps.println("# Maintain SPI interfaces");
+      ps.println("-keep class com.fasterxml.jackson.databind.* { *; }");
+      ps.println("-keepclassmembers class com.fasterxml.jackson.** { *; }");
+    }
+    
+    context.getReporter().info("Generated Jackson ProGuard rules: " + jacksonRulesFile.getAbsolutePath());
+    return jacksonRulesFile.getAbsolutePath();
+  }
+
+  /**
+   * Dex the given {@code input} file and cache the results using R8.
+   *
+   * @param context the build context
+   * @param input the input JAR file
+   * @return the path of the library to use as an input to the downstream R8 process
+   * @throws IOException if the R8 process fails due to an I/O issue
+   */
+  private static File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
+    synchronized (PREDEX_CACHE) {
+      File cacheDir = new File(context.getDexCacheDir());
+      File dexedLib = getDexFileName(input, cacheDir);
+      if (dexedLib.isFile()) {
+        context.getReporter().info(String.format("Using pre-dexed %1$s <- %2$s",
+            dexedLib.getName(), input));
+      } else {
+        // Gunakan runR8 untuk pre-dexing
+        boolean success = runR8(context, Collections.singleton(input), null,
+            context.getDexCacheDir(), dexedLib.getName());
+        if (!success) {
+          return input;
+        }
+      }
+      return dexedLib;
+    }
+  }
+          }
