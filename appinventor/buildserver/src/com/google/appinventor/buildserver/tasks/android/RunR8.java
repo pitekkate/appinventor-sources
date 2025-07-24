@@ -78,7 +78,7 @@ public class RunR8 extends DexTask implements AndroidTask {
                 }
             });
 
-            // Tentukan minSdk secara manual (karena AndroidBuildUtils tidak ada)
+            // Tentukan minSdk secara manual (karena AndroidBuildUtils bisa bermasalah)
             int minSdk;
             if (context.isForCompanion()) {
                 minSdk = 20;
@@ -343,4 +343,4 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
         return rulesFile;
     }
-}
+        }
