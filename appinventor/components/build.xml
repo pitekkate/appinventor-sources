@@ -499,9 +499,9 @@
     <echo>Dexing extension: ${extensionType}</echo>
   </target>
 
-  <target name="d8Extension">
+  <target name="r8Extension">
     <basename property="extensionType" file="${extension}" suffix=".jar" />
-    <java classname="com.android.tools.r8.D8"
+    <java classname="com.android.tools.r8.R8"
           fork="true"
           failonerror="true">
       <classpath>
@@ -514,7 +514,7 @@
       <arg value="${ExternalComponent.dir}/${extensionType}/classes.jar"/>
       <arg value="${ExternalComponent-class.dir}/${extensionType}.jar"/>
     </java>
-    <echo>D8ing extension: ${extensionType}</echo>
+    <echo>R8ing extension: ${extensionType}</echo>
   </target>
 
 
