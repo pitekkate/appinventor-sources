@@ -70,7 +70,7 @@ import org.json.JSONException;
     iconName = "images/firebaseDB.png")
 @SimpleObject
 @UsesPermissions(permissionNames = "android.permission.INTERNET")
-@UsesLibraries(libraries = "firebase.jar, jackson-databind.jar")
+@UsesLibraries(libraries = "firebase.jar")
 public class FirebaseDB extends AndroidNonvisibleComponent implements Component {
 
   private static final String LOG_TAG = "Firebase";
