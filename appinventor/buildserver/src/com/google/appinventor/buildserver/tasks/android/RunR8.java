@@ -134,6 +134,9 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
     }
 
+    /**
+     * Salin file ke file sementara yang dikelola JVM
+     */
     private File createTempCopy(File src) throws IOException {
         if (src == null || !src.isFile()) return src;
         String prefix;
@@ -154,6 +157,9 @@ public class RunR8 extends DexTask implements AndroidTask {
         return tempFile;
     }
 
+    /**
+     * Jalankan R8 untuk hasilkan classes.dex
+     */
     private boolean runR8Final(AndroidCompilerContext context, Collection<File> inputs,
                              Set<String> mainDexClasses, int minSdk) throws IOException {
         List<String> cmd = new ArrayList<>();
@@ -164,8 +170,11 @@ public class RunR8 extends DexTask implements AndroidTask {
         cmd.add(context.getResources().getR8Jar());
         cmd.add("com.android.tools.r8.R8");
 
+        // Gunakan direktori output terpisah
         File finalOutputDir = new File(context.getPaths().getTmpDir(), "r8-output");
-        deleteDirectory(finalOutputDir);
+        if (finalOutputDir.exists()) {
+            deleteDirectory(finalOutputDir);
+        }
         if (!finalOutputDir.mkdirs()) {
             context.getReporter().error("Failed to create final output directory: " + finalOutputDir);
             return false;
@@ -184,6 +193,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         // ✅ HAPUS: --allow-duplicate-resource-values TIDAK VALID
         // Resource duplikat harus diatasi di AAPT2, bukan R8
 
+        // Main dex rules jika perlu
         if (mainDexClasses != null && !mainDexClasses.isEmpty()) {
             File rulesFile = writeClassRulesToFile(context.getPaths().getTmpDir(), mainDexClasses);
             cmd.add("--main-dex-rules");
@@ -191,15 +201,18 @@ public class RunR8 extends DexTask implements AndroidTask {
             context.getReporter().info("Using main dex rules: " + rulesFile.getName());
         }
 
+        // Simpan SEMUA input ke file (tanpa duplikasi)
         File inputsFile = new File(context.getPaths().getTmpDir(), "r8-inputs.txt");
         Set<String> uniqueInputs = new HashSet<>();
 
+        // Tambahkan semua file .class secara rekursif
         Files.walk(context.getPaths().getClassesDir().toPath())
              .filter(path -> path.toString().endsWith(".class"))
              .map(Path::toAbsolutePath)
              .map(Path::toString)
              .forEach(uniqueInputs::add);
 
+        // Tambahkan semua JAR
         for (File input : inputs) {
             if (input.exists()) {
                 uniqueInputs.add(input.getAbsolutePath());
@@ -208,6 +221,7 @@ public class RunR8 extends DexTask implements AndroidTask {
             }
         }
 
+        // Tulis ke file
         try (PrintWriter w = new PrintWriter(new FileWriter(inputsFile))) {
             for (String input : uniqueInputs) {
                 w.println(input);
@@ -216,6 +230,7 @@ public class RunR8 extends DexTask implements AndroidTask {
 
         cmd.add("@" + inputsFile.getAbsolutePath());
 
+        // Logging command
         context.getReporter().info("Executing R8 command:");
         for (String arg : cmd) {
             context.getReporter().info("  " + arg);
@@ -243,6 +258,9 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
     }
 
+    /**
+     * Hapus direktori rekursif
+     */
     private void deleteDirectory(File dir) throws IOException {
         if (dir == null || !dir.exists()) return;
         if (dir.isDirectory()) {
@@ -258,6 +276,9 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
     }
 
+    /**
+     * Pre-dex library
+     */
     private File preDexLibrary(AndroidCompilerContext context, File input) throws IOException {
         synchronized (PREDEX_CACHE) {
             File cacheDir = new File(context.getDexCacheDir());
@@ -317,6 +338,9 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
     }
 
+    /**
+     * Tulis aturan ProGuard-style
+     */
     private File writeClassRulesToFile(File dir, Set<String> classes) throws IOException {
         File rulesFile = new File(dir, "main_dex_rules.pro");
         try (PrintWriter w = new PrintWriter(new FileWriter(rulesFile))) {
