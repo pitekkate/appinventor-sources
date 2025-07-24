@@ -27,7 +27,7 @@ public class AndroidBuildUtils {
         int minSdk = 15;
 
         // Cek di project.properties
-        File projectProps = new File(context.getPaths().getProjectDir(), "project.properties");
+        File projectProps = new File(context.getPaths().getYoungAndroidPath(), "project.properties");
         if (projectProps.exists()) {
             Properties props = new Properties();
             try (FileInputStream fis = new FileInputStream(projectProps)) {
@@ -50,7 +50,7 @@ public class AndroidBuildUtils {
             return 20; // Companion membutuhkan API 20 untuk main-dex rules
         }
 
-        // Pastikan tidak kurang dari 14 (karena App Inventor runtime membutuhkan setidaknya 14)
+        // Pastikan tidak kurang dari 14
         return Math.max(minSdk, 14);
     }
 }
