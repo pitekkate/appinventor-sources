@@ -161,7 +161,9 @@
     <copy toFile="${public.deps.dir}/google-oauth-client-jetty.jar" file="${lib.dir}/oauth/google-oauth-client-jetty-1.30.4.jar" />
     <copy toFile="${public.deps.dir}/gson-2.1.jar" file="${lib.dir}/gson/gson-2.1.jar" />
     <copy toFile="${public.deps.dir}/json.jar" file="${lib.dir}/json/json-android.jar" />
-    <copy toFile="${public.deps.dir}/jackson-core.jar" file="${lib.dir}/gcs/jackson-core-2.1.3.jar" />
+    <copy toFile="${public.deps.dir}/jackson-core.jar" file="${lib.dir}/gcs/jackson-core-2.13.5.jar" />
+    <copy toFile="${public.deps.dir}/jackson-annotations.jar" file="${lib.dir}/gcs/jackson-annotations-2.13.5.jar" />
+    <copy toFile="${public.deps.dir}/jackson-databing.jar" file="${lib.dir}/gcs/jackson-databind-2.13.5.jar" />
     <copy toFile="${public.deps.dir}/jedis.jar" file="${lib.dir}/jedis/jedis-3.0.0-SNAPSHOT-jar-with-dependencies.jar" />
     <copy toFile="${public.deps.dir}/commons-pool.jar" file="${lib.dir}/commons-pool/commons-pool2-2.0.jar" />
     <copy toFile="${public.deps.dir}/guava.jar" file="${lib.dir}/guava/guava-27.1-android.jar" />
