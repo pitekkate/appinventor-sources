@@ -31,7 +31,7 @@ import java.util.Set;
 
 @BuildType(aab = true, apk = true)
 public class RunR8 extends DexTask implements AndroidTask {
-  private static final boolean USE_D8_PROGUARD_RULES = true;
+  private static final boolean USE_R8_PROGUARD_RULES = true;
 
   @Override
   public TaskResult execute(AndroidCompilerContext context) {
@@ -108,7 +108,7 @@ public class RunR8 extends DexTask implements AndroidTask {
         }
       });
 
-      if (USE_D8_PROGUARD_RULES) {
+      if (USE_R8_PROGUARD_RULES) {
         // Google is moving to proguard-style rules for computing the main dex in R8
         mainDexClasses.clear();
         // Components
@@ -180,7 +180,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     javaArgs.add("-Xmx" + context.getChildProcessRam() + "M");
     javaArgs.add("-Xss8m");
     javaArgs.add("-cp");
-    javaArgs.add(context.getResources().getD8Jar());
+    javaArgs.add(context.getResources().getR8Jar());
     javaArgs.add("com.android.tools.r8.R8");
     if (intermediateFileName != null) {
       javaArgs.add("--intermediate");
@@ -200,7 +200,7 @@ public class RunR8 extends DexTask implements AndroidTask {
     javaArgs.add("--min-api");
     javaArgs.add(Integer.toString(AndroidBuildUtils.computeMinSdk(context)));
     if (mainDexClasses != null) {
-      if (USE_D8_PROGUARD_RULES) {
+      if (USE_R8_PROGUARD_RULES) {
         javaArgs.add("--main-dex-rules");
         javaArgs.add(writeClassRules(context.getPaths().getClassesDir(), mainDexClasses));
       } else {
