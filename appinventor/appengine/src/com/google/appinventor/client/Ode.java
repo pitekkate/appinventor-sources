@@ -6,6 +6,8 @@
 
 package com.google.appinventor.client;
 
+import static com.google.appinventor.client.utils.Promise.RejectCallback;
+import static com.google.appinventor.client.utils.Promise.ResolveCallback;
 import static com.google.appinventor.client.utils.Promise.reject;
 import static com.google.appinventor.client.utils.Promise.rejectWithReason;
 import static com.google.appinventor.client.utils.Promise.resolve;
@@ -20,18 +22,19 @@ import com.google.appinventor.client.boxes.ViewerBox;
 import com.google.appinventor.client.editor.EditorManager;
 import com.google.appinventor.client.editor.FileEditor;
 import com.google.appinventor.client.editor.ProjectEditor;
-import com.google.appinventor.client.editor.simple.SimpleVisibleComponentsPanel;
+import com.google.appinventor.client.editor.blocks.BlocklyPanel;
 import com.google.appinventor.client.editor.simple.palette.DropTargetProvider;
-import com.google.appinventor.client.editor.youngandroid.BlocklyPanel;
+import com.google.appinventor.client.editor.youngandroid.ConsolePanel;
 import com.google.appinventor.client.editor.youngandroid.DesignToolbar;
 import com.google.appinventor.client.editor.youngandroid.TutorialPanel;
 import com.google.appinventor.client.editor.youngandroid.YaFormEditor;
 import com.google.appinventor.client.editor.youngandroid.YaProjectEditor;
+import com.google.appinventor.client.editor.youngandroid.YaVisibleComponentsPanel;
 import com.google.appinventor.client.explorer.commands.ChainableCommand;
 import com.google.appinventor.client.explorer.commands.CommandRegistry;
 import com.google.appinventor.client.explorer.commands.SaveAllEditorsCommand;
-import com.google.appinventor.client.explorer.folder.FolderManager;
 import com.google.appinventor.client.explorer.dialogs.NoProjectDialogBox;
+import com.google.appinventor.client.explorer.folder.FolderManager;
 import com.google.appinventor.client.explorer.project.Project;
 import com.google.appinventor.client.explorer.project.ProjectChangeAdapter;
 import com.google.appinventor.client.explorer.project.ProjectManager;
@@ -48,16 +51,12 @@ import com.google.appinventor.client.tracking.Tracking;
 import com.google.appinventor.client.utils.HTML5DragDrop;
 import com.google.appinventor.client.utils.PZAwarePositionCallback;
 import com.google.appinventor.client.utils.Promise;
-import com.google.appinventor.client.utils.Promise.RejectCallback;
-import com.google.appinventor.client.utils.Promise.ResolveCallback;
 import com.google.appinventor.client.utils.Urls;
 import com.google.appinventor.client.widgets.ExpiredServiceOverlay;
-
 import com.google.appinventor.client.widgets.TutorialPopup;
 import com.google.appinventor.client.widgets.boxes.WorkAreaPanel;
 import com.google.appinventor.client.wizards.NewProjectWizard.NewProjectCommand;
 import com.google.appinventor.client.wizards.TemplateUploadWizard;
-import com.google.appinventor.client.wizards.UISettingsWizard;
 import com.google.appinventor.common.version.AppInventorFeatures;
 import com.google.appinventor.components.common.YaVersion;
 import com.google.appinventor.shared.rpc.RpcResult;
@@ -93,8 +92,8 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.http.client.Response;
-import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.resources.client.ClientBundle;
+import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.Command;
@@ -224,6 +223,7 @@ public class Ode implements EntryPoint {
   @UiField(provided = true) protected DeckPanel deckPanel;
   @UiField(provided = true) protected FlowPanel overDeckPanel;
   @UiField protected TutorialPanel tutorialPanel;
+  @UiField protected ConsolePanel consolePanel;
   private int projectsTabIndex;
   private int designTabIndex;
   private int debuggingTabIndex;
@@ -246,6 +246,8 @@ public class Ode implements EntryPoint {
 
   // Is the tutorial toolbar currently displayed?
   private boolean tutorialVisible = false;
+
+  private boolean consoleVisible = false;
 
   // Popup that indicates that an asynchronous request is pending. It is visible
   // initially, and will be hidden automatically after the first RPC completes.
@@ -467,7 +469,7 @@ public class Ode implements EntryPoint {
     propertiesBox.setVisible(true);
     if (currentFileEditor instanceof YaFormEditor) {
       YaFormEditor formEditor = (YaFormEditor) currentFileEditor;
-      SimpleVisibleComponentsPanel panel = formEditor.getVisibleComponentsPanel();
+      YaVisibleComponentsPanel panel = formEditor.getVisibleComponentsPanel();
       if (panel != null) {
         panel.showHiddenComponentsCheckbox();
       } else {
@@ -482,7 +484,7 @@ public class Ode implements EntryPoint {
     propertiesBox.setVisible(false);
     if (currentFileEditor instanceof YaFormEditor) {
       YaFormEditor formEditor = (YaFormEditor) currentFileEditor;
-      SimpleVisibleComponentsPanel panel = formEditor.getVisibleComponentsPanel();
+      YaVisibleComponentsPanel panel = formEditor.getVisibleComponentsPanel();
       if (panel != null) {
         panel.hideHiddenComponentsCheckbox();
       } else {
@@ -2458,6 +2460,19 @@ public class Ode implements EntryPoint {
     }
   }
 
+  public void setConsoleVisible(boolean visible) {
+    consoleVisible = visible;
+    if (visible) {
+      consolePanel.setVisible(true);
+      consolePanel.setWidth("300px");
+    } else {;
+      consolePanel.setVisible(false);
+    }
+    if (currentFileEditor != null) {
+      currentFileEditor.resize();
+    }
+  }
+
   /**
    * Indicate if the tutorial panel is currently visible.
    * @return true if the tutorial panel is visible.
@@ -2470,6 +2485,10 @@ public class Ode implements EntryPoint {
 
   public boolean isTutorialVisible() {
     return tutorialVisible;
+  }
+
+  public boolean isConsoleVisible() {
+    return consoleVisible;
   }
 
   public void setTutorialURL(String newURL) {
