@@ -1,58 +1,22 @@
 // -*- mode: java; c-basic-offset: 2; -*-
 // Copyright 2009-2011 Google, All Rights reserved
-// Copyright 2011-2014 MIT, All rights reserved
+// Copyright 2011-2017 MIT, All rights reserved
 // Released under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
 package com.google.appinventor.client.editor.youngandroid.palette;
 
-import com.google.appinventor.client.Ode;
-import com.google.appinventor.client.editor.simple.components.i18n.ComponentTranslationTable;
 import com.google.appinventor.client.editor.simple.SimpleComponentDatabase;
-import com.google.appinventor.client.editor.simple.components.MockComponent;
-import com.google.appinventor.client.editor.simple.components.utils.PropertiesUtil;
-import com.google.appinventor.client.editor.simple.palette.CollapsablePanel;
-import com.google.appinventor.client.editor.simple.palette.DropTargetProvider;
-import com.google.appinventor.client.editor.simple.palette.SimpleComponentDescriptor;
-import com.google.appinventor.client.editor.simple.palette.SimplePaletteItem;
+import com.google.appinventor.client.editor.simple.palette.AbstractPalettePanel;
 import com.google.appinventor.client.editor.simple.palette.SimplePalettePanel;
-import com.google.appinventor.client.editor.youngandroid.DesignToolbar;
 import com.google.appinventor.client.editor.youngandroid.YaFormEditor;
-import com.google.appinventor.client.explorer.project.ComponentDatabaseChangeListener;
 import com.google.appinventor.client.wizards.ComponentImportWizard;
-import com.google.appinventor.common.version.AppInventorFeatures;
 import com.google.appinventor.components.common.ComponentCategory;
-import com.google.gwt.core.client.JsArrayString;
-import com.google.gwt.core.client.Scheduler;
-import com.google.gwt.event.dom.client.BlurEvent;
-import com.google.gwt.event.dom.client.BlurHandler;
-import com.google.gwt.event.dom.client.ChangeEvent;
-import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
-import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.user.client.ui.VerticalPanel;
-import com.google.gwt.user.client.ui.TextBox;
-import com.google.gwt.event.dom.client.KeyPressEvent;
-import com.google.gwt.event.dom.client.KeyUpEvent;
-import com.google.gwt.event.dom.client.KeyDownEvent;
-import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyPressHandler;
-import com.google.gwt.event.dom.client.KeyUpHandler;
-import com.google.gwt.event.dom.client.KeyDownHandler;
-
-import jsinterop.annotations.JsOverlay;
-import jsinterop.annotations.JsType;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Iterator;
-import java.util.Set;
 
 import static com.google.appinventor.client.Ode.MESSAGES;
 
@@ -62,91 +26,7 @@ import static com.google.appinventor.client.Ode.MESSAGES;
  *
  * @author lizlooney@google.com (Liz Looney)
  */
-public class YoungAndroidPalettePanel extends Composite implements SimplePalettePanel, ComponentDatabaseChangeListener {
-
-  // Component database: information about components (including their properties and events)
-  private final SimpleComponentDatabase COMPONENT_DATABASE;
-
-  // Associated editor
-  private final YaFormEditor editor;
-
-  private final Map<ComponentCategory, PaletteHelper> paletteHelpers;
-
-  private final CollapsablePanel stackPalette;
-
-  // store Component Type along with SimplePaleteItem to enable removal of components
-  private final Map<String, SimplePaletteItem> simplePaletteItems;
-
-  private DropTargetProvider dropTargetProvider;
-
-  // panel that holds all palette items
-  final VerticalPanel panel;
-  // Map translated component names to English names
-  private final Map<String, String> translationMap;
-
-  private final TextBox searchText; 
-  private final VerticalPanel searchResults;
-  private JsArrayString arrayString = (JsArrayString) JsArrayString.createArray();
-  private String lastSearch = "";
-  private Map<String, SimplePaletteItem> searchSimplePaletteItems =
-      new HashMap<String, SimplePaletteItem>();
-
-  @SuppressWarnings("checkstyle:LineLength")
-  private native NativeArray filter(String match)/*-{
-    return this.@com.google.appinventor.client.editor.youngandroid.palette.YoungAndroidPalettePanel::arrayString.filter(function(x) { return x.indexOf(match) >= 0 });
-  }-*/;
-
-  @SuppressWarnings("checkstyle:LineLength")
-  private native void sort()/*-{
-    this.@com.google.appinventor.client.editor.youngandroid.palette.YoungAndroidPalettePanel::arrayString.sort();
-  }-*/;
-
-  private Scheduler.ScheduledCommand rebuild = null;
-
-  private void requestRebuildList() {
-    if (rebuild != null) {
-      return;
-    }
-
-    rebuild = new Scheduler.ScheduledCommand() {
-      @Override
-      public void execute() {
-        arrayString.setLength(0);
-        for (String s : translationMap.keySet()) {
-          arrayString.push(s);
-        }
-        sort();
-        // Refresh the list by repeating the search
-        doSearch(true);
-        rebuild = null;
-      }
-    };
-    Scheduler.get().scheduleDeferred(rebuild);
-  }
-
-  @JsType
-  public static class NativeArray extends JsArrayString implements Iterable<String> {
-    protected NativeArray() {
-    }
-
-    @Override
-    @JsOverlay
-    public final Iterator<String> iterator() {
-      return new Iterator<String>() {
-        int index = 0;
-
-        @Override
-        public boolean hasNext() {
-          return index < NativeArray.this.length();
-        }
-
-        @Override
-        public String next() {
-          return NativeArray.this.get(index++);
-        }
-      };
-    }
-  }
+public class YoungAndroidPalettePanel extends AbstractPalettePanel<SimpleComponentDatabase, YaFormEditor> {
 
   /**
    * Creates a new component palette panel.
@@ -154,13 +34,10 @@ public class YoungAndroidPalettePanel extends Composite implements SimplePalette
    * @param editor parent editor of this panel
    */
   public YoungAndroidPalettePanel(YaFormEditor editor) {
-    this.editor = editor;
-    COMPONENT_DATABASE = SimpleComponentDatabase.getInstance(editor.getProjectId());
+    super(editor, new YoungAndroidComponentFactory(editor), ComponentCategory.USERINTERFACE, ComponentCategory.LAYOUT, ComponentCategory.MEDIA,
+        ComponentCategory.ANIMATION, ComponentCategory.MAPS, ComponentCategory.SENSORS, ComponentCategory.SOCIAL, ComponentCategory.STORAGE,
+        ComponentCategory.EXPERIMENTAL, ComponentCategory.EXTENSION, ComponentCategory.INTERNAL);
 
-    stackPalette = new CollapsablePanel();
-    stackPalette.setStylePrimaryName("ode-CollapsablePanel");
-
-    paletteHelpers = new HashMap<ComponentCategory, PaletteHelper>();
     // If a category has a palette helper, add it to the paletteHelpers map here.
     simplePaletteItems = new HashMap<String, SimplePaletteItem>();
     translationMap = new HashMap<String, String>();
@@ -361,106 +238,22 @@ public class YoungAndroidPalettePanel extends Composite implements SimplePalette
   }
 
   @Override
-  public void configureComponent(MockComponent mockComponent) {
-    String componentType = mockComponent.getType();
-    PropertiesUtil.populateProperties(mockComponent,
-        COMPONENT_DATABASE.getPropertyDefinitions(componentType), editor);
+  public SimplePalettePanel copy() {
+    YoungAndroidPalettePanel copy = new YoungAndroidPalettePanel(this.editor);
+    copy.setSize("100%", "100%");
+    return copy;
   }
 
-  /**
-   *  Loads a single Component to Palette. Used for adding Components.
-   */
   @Override
-  public void addComponent(String componentTypeName) {
-    if (simplePaletteItems.containsKey(componentTypeName)) { // We are upgrading
-      removeComponent(componentTypeName);
-    }
-    int version = COMPONENT_DATABASE.getComponentVersion(componentTypeName);
-    String versionName = COMPONENT_DATABASE.getComponentVersionName(componentTypeName);
-    String dateBuilt = COMPONENT_DATABASE.getComponentBuildDate(componentTypeName);
-    String helpString = COMPONENT_DATABASE.getHelpString(componentTypeName);
-    String helpUrl = COMPONENT_DATABASE.getHelpUrl(componentTypeName);
-    String categoryDocUrlString = COMPONENT_DATABASE.getCategoryDocUrlString(componentTypeName);
-    String categoryString = COMPONENT_DATABASE.getCategoryString(componentTypeName);
-    Boolean showOnPalette = COMPONENT_DATABASE.getShowOnPalette(componentTypeName);
-    Boolean nonVisible = COMPONENT_DATABASE.getNonVisible(componentTypeName);
-    Boolean external = COMPONENT_DATABASE.getComponentExternal(componentTypeName);
-    ComponentCategory category = ComponentCategory.valueOf(categoryString);
-    if (showOnPalette && showCategory(category)) {
-      SimplePaletteItem item = new SimplePaletteItem(
-          new SimpleComponentDescriptor(componentTypeName, editor, version, versionName, dateBuilt, helpString, helpUrl,
-              categoryDocUrlString, showOnPalette, nonVisible, external),
-            dropTargetProvider);
-      simplePaletteItems.put(componentTypeName, item);
-      addPaletteItem(item, category);
-
-      // Make a second copy for the search mechanism
-      item = new SimplePaletteItem(
-          new SimpleComponentDescriptor(componentTypeName, editor, version, versionName, dateBuilt,
-              helpString, helpUrl, categoryDocUrlString, showOnPalette, nonVisible, external),
-          dropTargetProvider);
-      // Handle extensions
-      if (external) {
-        translationMap.put(componentTypeName.toLowerCase(), componentTypeName);
-        requestRebuildList();
-      }
-      searchSimplePaletteItems.put(componentTypeName, item);
-    }
-  }
-
-  public void removeComponent(String componentTypeName) {
-    String categoryString = COMPONENT_DATABASE.getCategoryString(componentTypeName);
-    ComponentCategory category = ComponentCategory.valueOf(categoryString);
-    if (simplePaletteItems.containsKey(componentTypeName)) {
-      removePaletteItem(simplePaletteItems.get(componentTypeName), category);
-      simplePaletteItems.remove(componentTypeName);
-    }
+  public VerticalPanel addComponentCategory(ComponentCategory category) {
+    VerticalPanel panel = super.addComponentCategory(category);
     if (category == ComponentCategory.EXTENSION) {
-      searchSimplePaletteItems.remove(componentTypeName);
-      translationMap.remove(componentTypeName);
-      requestRebuildList();
+      initExtensionPanel(panel);
     }
-  }
-
-  /*
-   * Adds a component entry to the palette.
-   */
-  private void addPaletteItem(SimplePaletteItem component, ComponentCategory category) {
-    VerticalPanel panel = stackPalette.getCategory(category);
-    if (panel == null) {
-      panel = addComponentCategory(category);
-    }
-    PaletteHelper paletteHelper = paletteHelpers.get(category);
-    if (paletteHelper != null) {
-      paletteHelper.addPaletteItem(panel, component);
-    } else {
-      panel.add(component);
-    }
-  }
-
-  private VerticalPanel addComponentCategory(ComponentCategory category) {
-    VerticalPanel panel = new VerticalPanel();
-    panel.setWidth("100%");
-    String title = "";
-    if (ComponentCategory.EXTENSION.equals(category)) {
-      title = MESSAGES.extensionComponentPallette();
-    } else {
-      title = ComponentTranslationTable.getCategoryName(category.getName());
-    }
-    stackPalette.add(panel, category, title);
-    // When the categories are loaded, we want the first one open, which will almost always be User Interface
     return panel;
   }
 
-  private void removePaletteItem(SimplePaletteItem component, ComponentCategory category) {
-    VerticalPanel panel = stackPalette.getCategory(category);
-    panel.remove(component);
-    if (panel.getWidgetCount() < 1) {
-      stackPalette.remove(panel, category);
-    }
-  }
-
-  private void initExtensionPanel() {
+  private void initExtensionPanel(VerticalPanel panel) {
     Anchor addComponentAnchor = new Anchor(MESSAGES.importExtensionMenuItem());
     addComponentAnchor.setStylePrimaryName("ode-ExtensionAnchor");
     addComponentAnchor.addClickHandler(new ClickHandler() {
@@ -470,59 +263,7 @@ public class YoungAndroidPalettePanel extends Composite implements SimplePalette
       }
     });
 
-    VerticalPanel categoryPanel = stackPalette.getCategory(ComponentCategory.EXTENSION);
-    if (categoryPanel == null) {
-      categoryPanel = addComponentCategory(ComponentCategory.EXTENSION);
-    }
-    categoryPanel.add(addComponentAnchor);
-    categoryPanel.setCellHorizontalAlignment(
-        addComponentAnchor, HasHorizontalAlignment.ALIGN_CENTER);
+    panel.add(addComponentAnchor);
+    panel.setCellHorizontalAlignment(addComponentAnchor, HasHorizontalAlignment.ALIGN_CENTER);
   }
-
-  @Override
-  public void onComponentTypeAdded(List<String> componentTypes) {
-    for (String componentType : componentTypes) {
-      this.addComponent(componentType);
-    }
-  }
-
-  @Override
-  public boolean beforeComponentTypeRemoved(List<String> componentTypes) {
-    boolean result = true;
-    for (String componentType : componentTypes) {
-      this.removeComponent(componentType);
-    }
-    return result;
-  }
-
-  @Override
-  public void onComponentTypeRemoved(Map<String, String> componentTypes) {
-
-  }
-
-  @Override
-  public void onResetDatabase() {
-    reloadComponents();
-  }
-
-  @Override
-  public void clearComponents() {
-    stackPalette.clear();
-    for (PaletteHelper pal : paletteHelpers.values()) {
-      pal.clear();
-    }
-    paletteHelpers.clear();
-    simplePaletteItems.clear();
-  }
-
-  @Override
-  public void reloadComponents() {
-    clearComponents();
-    loadComponents();
-  }
-
-  public native boolean isTextboxFocused()/*-{
-    var element = $doc.activeElement;
-    return element.tagName === 'INPUT' && element.type === 'text' || element.tagName === 'TEXTAREA';
-  }-*/;
 }
