@@ -1,0 +1,16 @@
+{
+  "name": "App Inventor Dev Environment",
+  "image": "mcr.microsoft.com/vscode/devcontainers/java:11-openj9",
+  "features": {
+    "ghcr.io/devcontainers/features/apache-ant:1": {}
+  },
+  "postCreateCommand": "echo 'Environment ready. Run ./build-all.sh to build App Inventor.'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}
