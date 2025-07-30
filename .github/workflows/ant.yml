@@ -8,11 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 'Set up JDK 11'
+      - name: 'Set up JDK 8'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 11
+          java-version: 8
       - name: 'Checkout submodules'
         run: git submodule update --init --recursive
       - name: 'Install 32-bit dependencies'
@@ -29,7 +29,7 @@ jobs:
         run: ant MakeAuthKey
         working-directory: appinventor
       - name: 'Build Appinventor'
-        run: ant noplay
+        run: ant
         working-directory: appinventor
       - name: 'Run Tests'
         run: ant tests
@@ -39,9 +39,16 @@ jobs:
         with:
           name: Test Reports
           path: appinventor/reports
-      - name: 'Build Companion'
-        run: ant PlayApp
-        working-directory: appinventor
+      - name: 'Upload War Public to Artifacts'
+        uses: actions/upload-artifact@v4.0.0
+        with:
+          name: War Public
+          path: appinventor/appengine/build/war
+      - name: 'Upload BuildServer to Artifacts'
+        uses: actions/upload-artifact@v4.0.0
+        with:
+          name: BuildServer
+          path: appinventor/build/buildserver/BuildServer.tar
       - name: 'Upload Companion to Artifacts'
         uses: actions/upload-artifact@v4.0.0
         with:
